@@ -1,0 +1,36 @@
+[submodule "ani/Gen1"]
+	path = ani/Gen1
+	url = https://github.com/JxstMichie/PokemonHD_Gen1.git
+	branch = main
+[submodule "ani/Gen2"]
+	path = ani/Gen2
+	url = https://github.com/JxstMichie/PokemonHD_Gen2.git
+	branch = main
+[submodule "ani/Gen3"]
+	path = ani/Gen3
+	url = https://github.com/JxstMichie/PokemonHD_Gen3.git
+	branch = main
+[submodule "ani/Gen4"]
+	path = ani/Gen4
+	url = https://github.com/JxstMichie/PokemonHD_Gen4.git
+	branch = main
+[submodule "ani/Gen5"]
+	path = ani/Gen5
+	url = https://github.com/JxstMichie/PokemonHD_Gen5.git
+	branch = main
+[submodule "ani/Gen6"]
+	path = ani/Gen6
+	url = https://github.com/JxstMichie/PokemonHD_Gen6.git
+	branch = main
+[submodule "ani/Gen7"]
+	path = ani/Gen7
+	url = https://github.com/JxstMichie/PokemonHD_Gen7.git
+	branch = main
+[submodule "ani/Gen8"]
+	path = ani/Gen8
+	url = https://github.com/JxstMichie/PokemonHD_Gen8.git
+	branch = main
+[submodule "ani/Gen9"]
+	path = ani/Gen9
+	url = https://github.com/JxstMichie/PokemonHD_Gen9.git
+	branch = main

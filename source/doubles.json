@@ -1,0 +1,33 @@
+{
+  "schema": "pokehome-showdown-positions",
+  "frame": [
+    640,
+    360
+  ],
+  "hpBars": {
+    "visible": true,
+    "mode": "sprite"
+  },
+  "doubles": {
+    "player": {
+      "cx": 201.1,
+      "bottom": 354,
+      "scale": 0.656
+    },
+    "opponent": {
+      "cx": 446.2,
+      "bottom": 175.8,
+      "scale": 0.85
+    },
+    "player2": {
+      "cx": 382.8,
+      "bottom": 346.8,
+      "scale": 0.656
+    },
+    "opponent2": {
+      "cx": 301,
+      "bottom": 157.9,
+      "scale": 0.85
+    }
+  }
+}

@@ -204,9 +204,28 @@
         const sp = pokemon && pokemon.sprite && pokemon.sprite.sp, place = sp && placementOf(sp);
         if (place) row.push({ sp, place, slot });
       });
-      return row.length > 1 ? layoutRow(row, front) : null;
+      if (row.length < 2) return null;
+      return fixedRow(row, front) || layoutRow(row, front);
     }
     return null;
+  }
+  function fixedSlot(scene, sp, place) {
+    const fixed = cfg.doubles;
+    if (!fixed || !(scene.activeCount > 1) || sp.__phdSlot === undefined) return null;
+    const anchor = fixed[`${sp.__phdFront ? "opponent" : "player"}${sp.__phdSlot ? "2" : ""}`];
+    if (!anchor) return null;
+    return { cx: anchor.cx, bottom: anchor.bottom, w: place.w * anchor.scale, h: place.h * anchor.scale };
+  }
+  function fixedRow(row, front) {
+    const fixed = cfg.doubles;
+    if (!fixed) return null;
+    const out = new Map();
+    for (const { sp, place, slot } of row) {
+      const anchor = fixed[`${front ? "opponent" : "player"}${slot ? "2" : ""}`];
+      if (!anchor) return null;
+      out.set(sp, { cx: anchor.cx, bottom: anchor.bottom, w: place.w * anchor.scale, h: place.h * anchor.scale });
+    }
+    return out;
   }
   function layoutRow(row, front) {
 
@@ -223,6 +242,67 @@
     }
     return out;
   }
+  const STATBAR_HEIGHT = 42;
+  const STATBAR_HALF_WIDTH = 80;
+  const hitboxes = {};
+  const statbarScenes = new Set();
+
+  function hitboxOf(url) {
+    if (!url) return null;
+    if (url in hitboxes) return hitboxes[url];
+    hitboxes[url] = null;
+    fetch(url).then((response) => response.blob()).then((blob) => createImageBitmap(blob)).then((bitmap) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.drawImage(bitmap, 0, 0);
+      const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+      let minX = canvas.width, minY = canvas.height, maxX = -1, maxY = -1;
+      for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+          if (data[(y * canvas.width + x) * 4 + 3] <= 16) continue;
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+      bitmap.close();
+      if (maxX < 0) return;
+      hitboxes[url] = { x: minX / canvas.width, y: minY / canvas.height, w: (maxX + 1 - minX) / canvas.width, h: (maxY + 1 - minY) / canvas.height };
+      statbarScenes.forEach(placeStatbars);
+    }).catch(() => {});
+    return null;
+  }
+
+  function spriteHitbox(sprite) {
+    const content = hitboxOf(actionUrl(sprite, ""));
+    if (!content || !sprite.sp || !sprite.sp.__phdBase) return null;
+    const box = sprite.scene.pos({ x: sprite.x, y: sprite.y, z: sprite.z }, sprite.sp);
+    return { left: box.left + content.x * box.width, top: box.top + content.y * box.height, width: content.w * box.width };
+  }
+
+  function placeStatbars(scene) {
+    const mode = cfg.hpBars && cfg.hpBars.mode;
+    const battle = scene.battle;
+    if ((mode !== "team" && mode !== "sprite") || !battle) return;
+    for (const side of [battle.nearSide, battle.farSide]) {
+      const sprites = ((side && side.active) || []).filter((pokemon) => pokemon && pokemon.sprite && pokemon.sprite.sp).map((pokemon) => pokemon.sprite);
+      const boxes = new Map(sprites.map((sprite) => [sprite, spriteHitbox(sprite)]));
+      const tops = [...boxes.values()].filter(Boolean).map((box) => box.top);
+      for (const sprite of sprites) {
+        const box = boxes.get(sprite);
+        if (!box) continue;
+        const reference = mode === "team" ? Math.min(...tops) : box.top;
+        sprite.statbarLeft = Math.round(box.left + box.width / 2 - STATBAR_HALF_WIDTH);
+        sprite.statbarTop = Math.max(-4, Math.round(reference - STATBAR_HEIGHT));
+        const bar = sprite.$statbar;
+        if (bar && !bar.is(":animated") && bar.css("display") !== "none") bar.css({ left: sprite.statbarLeft, top: sprite.statbarTop });
+      }
+    }
+  }
+
   function relayout(scene) {
     const battle = scene.battle;
     if (!battle) return;
@@ -249,8 +329,7 @@
         const rest = pos.call(this, Object.assign({}, loc, { x: base.x, y: base.y, z: base.z, xscale: 1, yscale: 1 }), obj);
         const grow = css.width / rest.width, tall = css.height / rest.height;
         const anim = { x: css.left + css.width / 2 - (rest.left + rest.width / 2), y: css.top + css.height / 2 - (rest.top + rest.height / 2) };
-        const many = this.activeCount > 1 && multiLayout(this, obj);
-        const mine = many && many.get(obj);
+        const mine = fixedSlot(this, obj, place) || (this.activeCount > 1 && (multiLayout(this, obj) || new Map()).get(obj));
         let cx, cy, width, height;
         if (mine) {
 
@@ -271,14 +350,20 @@
     if (window.PokemonSprite && !PokemonSprite.prototype.__phdPlaced) {
       PokemonSprite.prototype.__phdPlaced = true;
       const recalculatePos = PokemonSprite.prototype.recalculatePos;
-      PokemonSprite.prototype.recalculatePos = function () {
+      PokemonSprite.prototype.recalculatePos = function (slot) {
+        if (this.sp) {
+          this.sp.__phdSlot = slot;
+          this.sp.__phdFront = !!this.isFrontSprite;
+        }
         const r = recalculatePos.apply(this, arguments);
         if (this.sp) this.sp.__phdBase = { x: this.x, y: this.y, z: this.z };
 
+        statbarScenes.add(this.scene);
         if (this.scene.activeCount > 1 && !this.scene.__phdRelayout) {
           const scene = this.scene;
-          scene.__phdRelayout = setTimeout(() => { scene.__phdRelayout = 0; relayout(scene); }, 0);
+          scene.__phdRelayout = setTimeout(() => { scene.__phdRelayout = 0; relayout(scene); placeStatbars(scene); }, 0);
         }
+        placeStatbars(this.scene);
         return r;
       };
     }

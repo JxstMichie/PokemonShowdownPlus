@@ -2,7 +2,7 @@
   "name": "Pokemon Showdown HD",
   "description": "Implements HD Sprites of Pokemon for Showdown",
   "version": 1.0,
-  "host_permissions": ["https://play.pokemonshowdown.com/*"],
+  "host_permissions": ["*://pokemonshowdown.com/*", "*://*.pokemonshowdown.com/*", "*://psim.us/*", "*://*.psim.us/*"],
 
   "browser_specific_settings": {
     "gecko": { "id": "PokemonShowdownHD@NathanMichael" }

@@ -119,6 +119,13 @@
     Battle.prototype.__phdPatched = true;
     const S = BattleScene.prototype, B = Battle.prototype;
 
+    const addPokemonSprite = S.addPokemonSprite;
+    S.addPokemonSprite = function (pokemon) {
+      const sprite = addPokemonSprite.apply(this, arguments);
+      try { hitboxOf(actionUrl(sprite, "")); } catch (e) { console.warn("[phd]", e); }
+      return sprite;
+    };
+
     const animSummon = S.animSummon;
     S.animSummon = function (pokemon, slot, instant) {
       const r = animSummon.apply(this, arguments);

@@ -6,6 +6,8 @@ A fan project that adds HD renders to Pokemon Showdown.
 > For sprite issues, such as incorrect rendering, please open an issue in this repository.
 > Issues reported in the sprite repositories will not be addressed.
 
+![](https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/showcase_preview.gif)
+
 ## Contributions
 
 If you use an LLM, please read the [LLM Contributions Policy](#llm-contributions-policy).

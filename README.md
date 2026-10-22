@@ -1,4 +1,4 @@
-# Pokemon Showdown HD
+# Pokemon Showdown Plus
 
 A fan project that adds HD renders to Pokemon Showdown.
 

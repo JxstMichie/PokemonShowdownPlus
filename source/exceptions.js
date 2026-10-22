@@ -1,0 +1,27 @@
+module.exports = {
+  // Uses regular model for some forms as their models dont exist in home like totems, also have to catch misspellings
+  aliases: [
+    { match: /^(gourgeist|pumpkaboo)-(small|large)$/, folder: "$1" },
+    { match: /^xerneas-neutral$/, folder: "xerneas" },
+    { match: /^nidoran$/, folder: "nidoranm" },
+    { match: /^basculegion-f$/, folder: "basculegion-female" },
+    { match: /^minior-meteor$/, folder: "minior-bluemeteor" },
+    { match: /^necrozma-(dawn|dusk)(wings|mane)$/, folder: "necrozma-$1" },
+    { match: /^(groudon|kyogre)-primal$/, folder: "$1-mega" },
+    { match: /^camperupt-mega$/, folder: "camerupt-mega" },
+    { match: /^shapedo-mega$/, folder: "sharpedo-mega" },
+    { match: /^(.+)-(alola|busted)totem$/, folder: "$1-$2" },
+    { match: /^(.+)-totem-a$/, folder: "$1-alola" },
+    { match: /^(.+)-totem$/, folder: "$1" },
+    { match: /^alcremie-([a-z]+)-(cream|swirl)(-[a-z]+)?$/, folder: "alcremie-$1$2$3" },
+    { match: /^meowstic-[fm]mega$/, folder: "meowstic-mega" },
+    { match: /^pikachu-(belle|cosplay|libre|phd|pop-?star|rockstar|starter(-f)?|world)$/, folder: "pikachu" },
+    { match: /^pichu-spikyeared$/, folder: "pichu" },
+    { match: /^ogerpon-tealtera$/, folder: "ogerpon" },
+    { match: /^ogerpon-(wellspring|hearthflame|cornerstone)tera$/, folder: "ogerpon-$1" },
+    { match: /^terapagos-stellar$/, folder: "terapagos-terastal" },
+    { match: /^eevee-starter(-f)?$/, folder: "eevee" },
+    { match: /^rotom-([fhmsw])$/, folder: (m) => "rotom-" + { f: "frost", h: "heat", m: "mow", s: "fan", w: "wash" }[m[1]] },
+    { match: /^pikachu-(alola|hoenn|kalos|original|partner|sinnoh|unova)$/, folder: "pikachu-$1cap" },
+  ],
+};

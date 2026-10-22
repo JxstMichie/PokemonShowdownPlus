@@ -209,12 +209,18 @@
     }
     return null;
   }
+  function anchored(anchor, place, sp) {
+    const w = place.w * anchor.scale, h = place.h * anchor.scale;
+    const content = Number.isFinite(anchor.left) && Number.isFinite(anchor.feet) ? hitboxOf(actionUrl({ sp }, "")) : null;
+    if (!content) return { cx: anchor.cx, bottom: anchor.bottom, w, h, fixed: true };
+    return { cx: anchor.left - content.x * w + w / 2, bottom: anchor.feet - (content.y + content.h) * h + h, w, h, fixed: true };
+  }
   function fixedSlot(scene, sp, place) {
     const fixed = cfg.doubles;
     if (!fixed || !(scene.activeCount > 1) || sp.__phdSlot === undefined) return null;
     const anchor = fixed[`${sp.__phdFront ? "opponent" : "player"}${sp.__phdSlot ? "2" : ""}`];
     if (!anchor) return null;
-    return { cx: anchor.cx, bottom: anchor.bottom, w: place.w * anchor.scale, h: place.h * anchor.scale };
+    return anchored(anchor, place, sp);
   }
   function fixedRow(row, front) {
     const fixed = cfg.doubles;
@@ -223,7 +229,7 @@
     for (const { sp, place, slot } of row) {
       const anchor = fixed[`${front ? "opponent" : "player"}${slot ? "2" : ""}`];
       if (!anchor) return null;
-      out.set(sp, { cx: anchor.cx, bottom: anchor.bottom, w: place.w * anchor.scale, h: place.h * anchor.scale });
+      out.set(sp, anchored(anchor, place, sp));
     }
     return out;
   }
@@ -271,7 +277,7 @@
       bitmap.close();
       if (maxX < 0) return;
       hitboxes[url] = { x: minX / canvas.width, y: minY / canvas.height, w: (maxX + 1 - minX) / canvas.width, h: (maxY + 1 - minY) / canvas.height };
-      statbarScenes.forEach(placeStatbars);
+      statbarScenes.forEach((scene) => { relayout(scene); placeStatbars(scene); });
     }).catch(() => {});
     return null;
   }
@@ -334,7 +340,7 @@
         if (mine) {
 
           const single = pos.call(this, Object.assign({}, loc, { x: 0, y: 0, z: base.z, xscale: 1, yscale: 1 }), obj);
-          const slotY = rest.top + rest.height / 2 - (single.top + single.height / 2);
+          const slotY = mine.fixed ? 0 : rest.top + rest.height / 2 - (single.top + single.height / 2);
           width = mine.w * grow; height = mine.h * tall;
           cx = mine.cx + anim.x;
           cy = mine.bottom + slotY - mine.h / 2 + anim.y;

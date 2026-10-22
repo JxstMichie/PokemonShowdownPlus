@@ -10,23 +10,23 @@
   },
   "doubles": {
     "player": {
-      "cx": 201.1,
-      "bottom": 354,
+      "cx": 221.6,
+      "bottom": 340.5,
       "scale": 0.656
     },
     "opponent": {
-      "cx": 446.2,
-      "bottom": 175.8,
+      "cx": 448.4,
+      "bottom": 155.4,
       "scale": 0.85
     },
     "player2": {
-      "cx": 382.8,
-      "bottom": 346.8,
+      "cx": 418.3,
+      "bottom": 340.8,
       "scale": 0.656
     },
     "opponent2": {
-      "cx": 301,
-      "bottom": 157.9,
+      "cx": 255.5,
+      "bottom": 157.1,
       "scale": 0.85
     }
   }

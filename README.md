@@ -1,4 +1,5 @@
 ![](https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/logo.png)
+
 A fan project that adds HD renders to Pokemon Showdown.
 
 > [!IMPORTANT]

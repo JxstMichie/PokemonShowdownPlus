@@ -1,6 +1,3 @@
 build.py
-test/ani-coverage.test.js
-test/unused_ani.txt
-test/used_ani.txt
-test/missing_ani.txt
-dist/pokemon-showdown-hd.xpi
+test/*
+dist/*

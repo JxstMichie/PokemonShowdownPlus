@@ -2,7 +2,8 @@
   const runtime = browser.runtime;
 
   const backdrop = document.createElement("style");
-  backdrop.textContent = `.backdrop[style*="sprites/gen6bgs/"] { top: 0 !important; left: 0 !important; width: 640px !important; height: 360px !important; background-size: cover !important; background-position: center !important; }`;
+  backdrop.textContent = `.backdrop[style*="sprites/gen6bgs/"] { top: 0 !important; left: 0 !important; width: 640px !important; height: 360px !important; background-size: cover !important; background-position: center !important; }
+    .mistyterrainweather, .electricterrainweather, .grassyterrainweather, .psychicterrainweather, .trickroomweather { background-color: transparent !important; background-size: cover !important; background-position: center !important; background-repeat: no-repeat !important; }`;
   (document.head || document.documentElement).appendChild(backdrop);
 
   // ImageDecoder is not avaialble on older browsers

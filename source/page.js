@@ -2,6 +2,10 @@
   const cfg = JSON.parse(document.currentScript.dataset.cfg);
   const list = phdParseList(cfg.list);
 
+  // Didn't want to screw around to figure out how to detect lunges dynamically so I opted for a list
+  // feel free to change this
+  const lunge = new Set(cfg.lunge);
+
   const durations = {};
   const pending = {};
   document.addEventListener("phd-duration", (e) => {
@@ -153,10 +157,23 @@
           if (url && !(url in durations)) document.dispatchEvent(new CustomEvent("phd-duration-request", { detail: url }));
           play(pokemon.sprite, kind, this.scene.timeOffset);
 
-          if (url && durations[url]) this.scene.timeOffset += durations[url];
+          // Status Moves will iniate halfway through the animation
+          if (url && durations[url]) this.scene.timeOffset += kind === "tap" ? durations[url] / 2 : durations[url];
         }
       } catch (e) { console.warn("[phd]", e); }
-      return animateMove.apply(this, arguments);
+      const sprite = pokemon.sprite;
+      const missing = window.BattleMoveAnims && !BattleMoveAnims[move.id];
+      if (!(sprite && sprite.anim && (lunge.has(move.id) || missing))) return animateMove.apply(this, arguments);
+      const proto = sprite.anim;
+      sprite.anim = function (end, transition) {
+        const { x, y, z, ...rest } = end;
+        return proto.call(this, rest, transition);
+      };
+      try {
+        return animateMove.apply(this, arguments);
+      } finally {
+        delete sprite.anim;
+      }
     };
   }
 

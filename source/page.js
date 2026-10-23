@@ -23,12 +23,13 @@
   };
 
   const loaded = {};
+  const decoded = {};
   function preload(url) {
     if (!url) return Promise.resolve();
     if (!loaded[url]) {
       const img = new Image();
       img.src = url;
-      loaded[url] = img.decode().catch(() => {}).then(() => img);
+      loaded[url] = img.decode().catch(() => {}).then(() => { decoded[url] = true; return img; });
     }
     return loaded[url];
   }
@@ -46,8 +47,7 @@
     if (!url) return;
     const token = (sprite.__phdToken = (sprite.__phdToken || 0) + 1);
     const ready = Promise.all([getDuration(url), preload(url)]);
-    setTimeout(async () => {
-      const [ms] = await ready;
+    const start = (ms) => {
       const el = sprite.$el;
       if (sprite.__phdToken !== token || !el || !el[0].isConnected) return;
       sprite.__phdShown = token;
@@ -58,7 +58,13 @@
         sprite.__phdShown = 0;
         el.attr("src", sprite.sp.url);
       }, ms);
-    }, Math.max(0, delay || 0));
+    };
+    if (url in durations && decoded[url]) {
+      if (delay > 0) setTimeout(() => start(durations[url]), delay);
+      else start(durations[url]);
+    } else {
+      setTimeout(async () => start((await ready)[0]), Math.max(0, delay || 0));
+    }
   }
 
   const original = {};
@@ -98,12 +104,29 @@
     const addPokemonSprite = S.addPokemonSprite;
     S.addPokemonSprite = function (pokemon) {
       const sprite = addPokemonSprite.apply(this, arguments);
-      try { hitboxOf(actionUrl(sprite, "")); } catch (e) { console.warn("[phd]", e); }
+      try {
+        hitboxOf(actionUrl(sprite, ""));
+        for (const kind of ["tap", "physical"]) {
+          const url = actionUrl(sprite, kind);
+          if (url) { preload(url); getDuration(url); }
+        }
+      } catch (e) { console.warn("[phd]", e); }
       return sprite;
     };
 
     const animSummon = S.animSummon;
     S.animSummon = function (pokemon, slot, instant) {
+      const sprite = pokemon.sprite, scene = this, args = arguments;
+      const hitUrl = sprite && sprite.sp && placementOf(sprite.sp) && actionUrl(sprite, "");
+      if (hitUrl && this.animating && !hitboxDone.has(hitUrl)) {
+        hitboxOf(hitUrl);
+        gate(sprite);
+        (hitboxWaiters[hitUrl] = hitboxWaiters[hitUrl] || []).push(() => animSummonNow.apply(scene, args));
+        return;
+      }
+      return animSummonNow.apply(this, args);
+    };
+    const animSummonNow = function (pokemon, slot, instant) {
       const r = animSummon.apply(this, arguments);
       try {
         const sprite = pokemon.sprite;
@@ -114,6 +137,7 @@
             if (!(url in durations)) document.dispatchEvent(new CustomEvent("phd-duration-request", { detail: url }));
           }
         }
+        gate(sprite);
         if (this.animating && !instant && this.battle.seeking === null && sprite.$el) {
           sprite.$el.queue(function (next) { play(sprite, "tap", 0); next(); });
         }
@@ -139,9 +163,6 @@
           const url = actionUrl(pokemon.sprite, kind);
           if (url && !(url in durations)) document.dispatchEvent(new CustomEvent("phd-duration-request", { detail: url }));
           play(pokemon.sprite, kind, this.scene.timeOffset);
-
-          // Status Moves will iniate halfway through the animation
-          if (url && durations[url]) this.scene.timeOffset += kind === "tap" ? durations[url] / 2 : durations[url];
         }
       } catch (e) { console.warn("[phd]", e); }
       const sprite = pokemon.sprite;
@@ -256,12 +277,41 @@
   const STATBAR_HEIGHT = 42;
   const STATBAR_HALF_WIDTH = 80;
   const hitboxes = {};
+  const hitboxDone = new Set();
+  const hitboxWaiters = {};
   const statbarScenes = new Set();
+
+  function refresh() {
+    statbarScenes.forEach((scene) => { gateScene(scene); relayout(scene); placeStatbars(scene); gateScene(scene); });
+  }
+  function gate(sprite) {
+    if (!sprite || !sprite.sp || !placementOf(sprite.sp)) return;
+    const url = actionUrl(sprite, "");
+    if (!url) return;
+    hitboxOf(url);
+    const visibility = hitboxDone.has(url) ? "" : "hidden";
+    if (sprite.$el) sprite.$el.css("visibility", visibility);
+    if (sprite.$statbar) sprite.$statbar.css("visibility", visibility);
+  }
+  function gateScene(scene) {
+    const battle = scene.battle;
+    if (!battle) return;
+    for (const side of [battle.nearSide, battle.farSide]) {
+      for (const pokemon of (side && side.active) || []) gate(pokemon && pokemon.sprite);
+    }
+  }
 
   function hitboxOf(url) {
     if (!url) return null;
     if (url in hitboxes) return hitboxes[url];
     hitboxes[url] = null;
+    const finish = () => {
+      hitboxDone.add(url);
+      const waiting = hitboxWaiters[url] || [];
+      delete hitboxWaiters[url];
+      waiting.forEach((run) => { try { run(); } catch (e) { console.warn("[phd]", e); } });
+      refresh();
+    };
     fetch(url).then((response) => response.blob()).then((blob) => createImageBitmap(blob)).then((bitmap) => {
       const canvas = document.createElement("canvas");
       canvas.width = bitmap.width;
@@ -280,10 +330,9 @@
         }
       }
       bitmap.close();
-      if (maxX < 0) return;
-      hitboxes[url] = { x: minX / canvas.width, y: minY / canvas.height, w: (maxX + 1 - minX) / canvas.width, h: (maxY + 1 - minY) / canvas.height };
-      statbarScenes.forEach((scene) => { relayout(scene); placeStatbars(scene); });
-    }).catch(() => {});
+      if (maxX >= 0) hitboxes[url] = { x: minX / canvas.width, y: minY / canvas.height, w: (maxX + 1 - minX) / canvas.width, h: (maxY + 1 - minY) / canvas.height };
+      finish();
+    }).catch(finish);
     return null;
   }
 
@@ -398,9 +447,10 @@
         statbarScenes.add(this.scene);
         if (this.scene.activeCount > 1 && !this.scene.__phdRelayout) {
           const scene = this.scene;
-          scene.__phdRelayout = setTimeout(() => { scene.__phdRelayout = 0; relayout(scene); placeStatbars(scene); }, 0);
+          scene.__phdRelayout = setTimeout(() => { scene.__phdRelayout = 0; relayout(scene); placeStatbars(scene); gateScene(scene); }, 0);
         }
         placeStatbars(this.scene);
+        gate(this);
         return r;
       };
     }
@@ -413,4 +463,8 @@
   patchPlacement();
   patchTeamPreview();
   setInterval(() => { patchSizes(); patchBattle(); patchPlacement(); patchTeamPreview(); }, 500);
+  const fast = setInterval(() => {
+    patchSizes(); patchBattle(); patchPlacement(); patchTeamPreview();
+    if (window.Battle && window.BattleScene && window.PokemonSprite && window.Dex && Battle.prototype.__phdPatched && BattleScene.prototype.__phdPlaced && Dex.__phdPatched) clearInterval(fast);
+  }, 20);
 })();

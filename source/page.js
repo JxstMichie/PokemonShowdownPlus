@@ -211,8 +211,13 @@
   }
   function anchored(anchor, place, sp) {
     const w = place.w * anchor.scale, h = place.h * anchor.scale;
-    const content = Number.isFinite(anchor.left) && Number.isFinite(anchor.feet) ? hitboxOf(actionUrl({ sp }, "")) : null;
+
+    //anchor.bottom offset so images with alot of empty bottom space dont levitate like chien-pao
+    const content = hitboxOf(actionUrl({ sp }, ""));
     if (!content) return { cx: anchor.cx, bottom: anchor.bottom, w, h, fixed: true };
+    if (!Number.isFinite(anchor.left) || !Number.isFinite(anchor.feet)) {
+      return { cx: anchor.cx, bottom: anchor.bottom + (1 - content.y - content.h) * h, w, h, fixed: true };
+    }
     return { cx: anchor.left - content.x * w + w / 2, bottom: anchor.feet - (content.y + content.h) * h + h, w, h, fixed: true };
   }
   function fixedSlot(scene, sp, place) {

@@ -6,7 +6,7 @@ SOURCE = HERE / "source"
 DATA = HERE / "data"
 OUT = HERE / "dist" / "firefox" / "pokemon-showdown-hd.xpi"
 CODE = ["manifest.json", "config.js", "background.js", "loader.js", "page.js", "exceptions.js"]
-JSON = ["doubles.json", "move.json", "sizes.json", "sprites.txt", "placements.json"]
+JSON = ["doubles.json", "move.json", "sprites.txt", "placements.json"]
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as z:

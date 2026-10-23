@@ -314,6 +314,26 @@
     }
   }
 
+  let originalPos;
+  function syncCoords(sprite) {
+    const nat = sprite.__phdNatural, scene = sprite.scene;
+    if (!nat) return;
+    sprite.x = nat.x; sprite.y = nat.y; sprite.z = nat.z;
+    if (sprite.sp && sprite.sp.__phdBase) sprite.sp.__phdBase = { x: nat.x, y: nat.y, z: nat.z };
+    const place = sprite.sp && placementOf(sprite.sp);
+    if (!place || !(scene.activeCount <= 1 || fixedSlot(scene, sprite.sp, place))) return;
+    sprite.sp.__phdBase = { x: nat.x, y: nat.y, z: nat.z };
+    const drawn = scene.pos(nat, sprite.sp), rest = originalPos.call(scene, nat, sprite.sp);
+    const right = originalPos.call(scene, Object.assign({}, nat, { x: nat.x + 100 }), sprite.sp);
+    const up = originalPos.call(scene, Object.assign({}, nat, { y: nat.y + 100 }), sprite.sp);
+    const dx = drawn.left + drawn.width / 2 - rest.left - rest.width / 2;
+    const dy = drawn.top + drawn.height / 2 - rest.top - rest.height / 2;
+    const ux = (right.left - rest.left) / 100, uy = (rest.top - up.top) / 100;
+    if (!(ux > 0 && uy > 0)) return;
+    sprite.x = nat.x + dx / ux;
+    sprite.y = nat.y - dy / uy;
+    sprite.sp.__phdBase = { x: sprite.x, y: sprite.y, z: sprite.z };
+  }
   function relayout(scene) {
     const battle = scene.battle;
     if (!battle) return;
@@ -321,6 +341,7 @@
       for (const pokemon of (side && side.active) || []) {
         const sprite = pokemon && pokemon.sprite;
         if (!sprite || !sprite.$el || !sprite.sp || !placementOf(sprite.sp) || !sprite.sp.__phdBase || sprite.$el.is(":animated")) continue;
+        syncCoords(sprite);
         const { left, top, width, height } = scene.pos({ x: sprite.x, y: sprite.y, z: sprite.z }, sprite.sp);
         sprite.$el.css({ left, top, width, height });
       }
@@ -330,6 +351,7 @@
     if (!window.BattleScene || BattleScene.prototype.__phdPlaced) return;
     BattleScene.prototype.__phdPlaced = true;
     const pos = BattleScene.prototype.pos;
+    originalPos = pos;
     BattleScene.prototype.pos = function (loc, obj) {
       const css = pos.apply(this, arguments);
       try {
@@ -367,7 +389,11 @@
           this.sp.__phdFront = !!this.isFrontSprite;
         }
         const r = recalculatePos.apply(this, arguments);
-        if (this.sp) this.sp.__phdBase = { x: this.x, y: this.y, z: this.z };
+        this.__phdNatural = { x: this.x, y: this.y, z: this.z };
+        if (this.sp) {
+          this.sp.__phdBase = { x: this.x, y: this.y, z: this.z };
+          syncCoords(this);
+        }
 
         statbarScenes.add(this.scene);
         if (this.scene.activeCount > 1 && !this.scene.__phdRelayout) {

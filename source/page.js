@@ -41,6 +41,13 @@
     return m && phdSpriteUrl(list, m[3], kind, (m[1] || "") + (m[2] || ""));
   }
 
+  function warm(sprite) {
+    for (const kind of ["tap", "physical"]) {
+      const url = actionUrl(sprite, kind);
+      if (url) { preload(url); getDuration(url); }
+    }
+  }
+
   function play(sprite, kind, delay) {
     if (!sprite || !sprite.$el) return;
     const url = actionUrl(sprite, kind);
@@ -106,44 +113,40 @@
       const sprite = addPokemonSprite.apply(this, arguments);
       try {
         hitboxOf(actionUrl(sprite, ""));
-        for (const kind of ["tap", "physical"]) {
-          const url = actionUrl(sprite, kind);
-          if (url) { preload(url); getDuration(url); }
-        }
+        warm(sprite);
       } catch (e) { console.warn("[phd]", e); }
       return sprite;
     };
 
+    function holdForHitbox(name, run) {
+      S[name] = function (pokemon) {
+        const sprite = pokemon.sprite, scene = this, args = arguments;
+        const hitUrl = sprite && sprite.sp && placementOf(sprite.sp) && actionUrl(sprite, "");
+        if (hitUrl && this.animating && !hitboxDone.has(hitUrl)) {
+          hitboxOf(hitUrl);
+          gate(sprite);
+          (hitboxWaiters[hitUrl] = hitboxWaiters[hitUrl] || []).push(() => run.apply(scene, args));
+          return;
+        }
+        return run.apply(this, args);
+      };
+    }
+
+    const animDragIn = S.animDragIn;
+    holdForHitbox("animDragIn", animDragIn);
+
     const animSummon = S.animSummon;
-    S.animSummon = function (pokemon, slot, instant) {
-      const sprite = pokemon.sprite, scene = this, args = arguments;
-      const hitUrl = sprite && sprite.sp && placementOf(sprite.sp) && actionUrl(sprite, "");
-      if (hitUrl && this.animating && !hitboxDone.has(hitUrl)) {
-        hitboxOf(hitUrl);
-        gate(sprite);
-        (hitboxWaiters[hitUrl] = hitboxWaiters[hitUrl] || []).push(() => animSummonNow.apply(scene, args));
-        return;
-      }
-      return animSummonNow.apply(this, args);
-    };
-    const animSummonNow = function (pokemon, slot, instant) {
+    holdForHitbox("animSummon", function (pokemon, slot, instant) {
       const r = animSummon.apply(this, arguments);
       try {
         const sprite = pokemon.sprite;
-        for (const kind of ["tap", "physical"]) {
-          const url = actionUrl(sprite, kind);
-          if (url) {
-            preload(url);
-            if (!(url in durations)) document.dispatchEvent(new CustomEvent("phd-duration-request", { detail: url }));
-          }
-        }
-        gate(sprite);
+        warm(sprite);
         if (this.animating && !instant && this.battle.seeking === null && sprite.$el) {
           sprite.$el.queue(function (next) { play(sprite, "tap", 0); next(); });
         }
       } catch (e) { console.warn("[phd]", e); }
       return r;
-    };
+    });
 
     const runPrepareAnim = S.runPrepareAnim;
     S.runPrepareAnim = function (moveid, attacker) {
@@ -282,7 +285,7 @@
   const statbarScenes = new Set();
 
   function refresh() {
-    statbarScenes.forEach((scene) => { gateScene(scene); relayout(scene); placeStatbars(scene); gateScene(scene); });
+    statbarScenes.forEach((scene) => { relayout(scene); placeStatbars(scene); gateScene(scene); });
   }
   function gate(sprite) {
     if (!sprite || !sprite.sp || !placementOf(sprite.sp)) return;
@@ -433,16 +436,17 @@
       PokemonSprite.prototype.__phdPlaced = true;
       const recalculatePos = PokemonSprite.prototype.recalculatePos;
       PokemonSprite.prototype.recalculatePos = function (slot) {
-        if (this.sp) {
-          this.sp.__phdSlot = slot;
-          this.sp.__phdFront = !!this.isFrontSprite;
+        for (const sp of [this.sp, this.oldsp]) {
+          if (!sp) continue;
+          sp.__phdSlot = slot;
+          sp.__phdFront = !!this.isFrontSprite;
         }
         const r = recalculatePos.apply(this, arguments);
         this.__phdNatural = { x: this.x, y: this.y, z: this.z };
-        if (this.sp) {
-          this.sp.__phdBase = { x: this.x, y: this.y, z: this.z };
-          syncCoords(this);
+        for (const sp of [this.sp, this.oldsp]) {
+          if (sp) sp.__phdBase = { x: this.x, y: this.y, z: this.z };
         }
+        if (this.sp) syncCoords(this);
 
         statbarScenes.add(this.scene);
         if (this.scene.activeCount > 1 && !this.scene.__phdRelayout) {
@@ -451,6 +455,38 @@
         }
         placeStatbars(this.scene);
         gate(this);
+        return r;
+      };
+
+      const adopt = (sprite, from) => {
+        for (const sp of [sprite.sp, sprite.oldsp]) {
+          if (!sp || !from) continue;
+          for (const key of ["__phdSlot", "__phdFront", "__phdBase"]) if (sp[key] === undefined) sp[key] = from[key];
+        }
+        statbarScenes.add(sprite.scene);
+        gate(sprite);
+        relayout(sprite.scene);
+        placeStatbars(sprite.scene);
+      };
+
+      const animTransform = PokemonSprite.prototype.animTransform;
+      PokemonSprite.prototype.animTransform = function (pokemon) {
+        const before = this.sp;
+        try {
+          const next = { sp: Dex.getSpriteData(pokemon, this.isFrontSprite, { gen: this.scene.gen, mod: this.scene.mod }) };
+          hitboxOf(actionUrl(next, ""));
+          warm(next);
+        } catch (e) { console.warn("[phd]", e); }
+        const r = animTransform.apply(this, arguments);
+        try { adopt(this, before); } catch (e) { console.warn("[phd]", e); }
+        return r;
+      };
+
+      const removeTransform = PokemonSprite.prototype.removeTransform;
+      PokemonSprite.prototype.removeTransform = function () {
+        const before = this.sp;
+        const r = removeTransform.apply(this, arguments);
+        try { adopt(this, before); } catch (e) { console.warn("[phd]", e); }
         return r;
       };
     }

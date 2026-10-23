@@ -61,38 +61,14 @@
     }, Math.max(0, delay || 0));
   }
 
-  const OPPONENT_SCALE = 0.8;
   const original = {};
-  function worldSize(folder, view) {
-    const s = cfg.sizes, d = s && s[folder] && (s[folder][view] || s[folder].front);
-    if (!d) return cfg.size;
-    const { ref, exponent, min, max } = s._;
-    return Math.round(Math.min(max, Math.max(min, cfg.size * Math.pow(d / ref, exponent))));
-  }
-  function sizeOf(folder, view, key, entry) {
-    const baked = cfg.sizes && cfg.sizes[folder] && cfg.sizes[folder].px;
-    if (baked && (baked[view] || baked[view === "front" ? "back" : "front"])) {
-      return Math.round((baked[view] || baked[view === "front" ? "back" : "front"]) * (view === "front" ? OPPONENT_SCALE : 1));
-    }
+  function sizeOf(view, key, entry) {
     const was = original[key] || (original[key] = { front: entry.front && { ...entry.front }, back: entry.back && { ...entry.back } });
-
-    const s = cfg.sizes, rec = s && s[folder], other = view === "front" ? "back" : "front";
-    const sd = rec && rec.sd && (rec.sd[view] || rec.sd[other]);
-    let o = sd ? { w: sd[0], h: sd[1] } : was[view] || was[other];
-    if (!o && rec && s._.fit) {
-      const d = rec[view] || rec.front, px = Math.exp(s._.fit.a) * Math.pow(d, s._.fit.b);
-      o = { w: px, h: px };
-    }
-
-    if (o && o.w && o.h) {
-      const fit = { ref: 49, size: 165, exponent: 0.75, min: 60, back: 0.65, front: 0.8, max: 600 };
-
-      const f = rec && rec.fill && (rec.fill[view] || rec.fill[other]), r = s && s._ && s._.ref_fill;
-      const grow = f && r ? Math.min(2.5, Math.max(0.5, r / f)) : 1;
-      const px = fit.size * Math.pow(Math.max(o.w, o.h) / fit.ref, fit.exponent) * (view === "back" ? fit.back : fit.front) * grow;
-      return Math.round(Math.min(fit.max, Math.max(fit.min, px)));
-    }
-    return worldSize(folder, view);
+    const o = was[view] || was[view === "front" ? "back" : "front"];
+    if (!o || !o.w || !o.h) return cfg.size;
+    const fit = { ref: 49, size: 165, exponent: 0.75, min: 60, back: 0.65, front: 0.8, max: 600 };
+    const px = fit.size * Math.pow(Math.max(o.w, o.h) / fit.ref, fit.exponent) * (view === "back" ? fit.back : fit.front);
+    return Math.round(Math.min(fit.max, Math.max(fit.min, px)));
   }
 
   const spriteNames = [...Object.keys(list.folders), ...Object.keys(list.aliases)];
@@ -106,7 +82,7 @@
         const entry = table[id] || (table[id] = {});
         if (entry.__phdPatched) continue;
         const source = table[key] || entry;
-        const front = sizeOf(folder.name, "front", key, source), back = sizeOf(folder.name, "back", key, source);
+        const front = sizeOf("front", key, source), back = sizeOf("back", key, source);
         if (phdHasFile(folder, "", "")) entry.front = { w: front, h: front };
         if (phdHasFile(folder, "", "-back")) entry.back = { w: back, h: back };
         entry.__phdPatched = true;

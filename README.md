@@ -12,7 +12,7 @@ A fan project that adds HD renders to Pokemon Showdown.
 
 (currently only firefox is supported)
 Make sure you have python installed and run, it will create dist/firefox
-`python3 scripts/build.py`
+> `python3 scripts/build.py`
 
 ## Contributions
 

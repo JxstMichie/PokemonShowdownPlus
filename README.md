@@ -8,6 +8,12 @@ A fan project that adds HD renders to Pokemon Showdown.
 
 ![](https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/showcase_preview.gif)
 
+## How to Build
+
+(currently only firefox is supported)
+Make sure you have python installed and run, it will create dist/firefox
+`python3 scripts/build.py`
+
 ## Contributions
 
 If you use an LLM, please read the [LLM Contributions Policy](#llm-contributions-policy).

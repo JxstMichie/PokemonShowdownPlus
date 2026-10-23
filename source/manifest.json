@@ -1,10 +1,43 @@
 {
+  "manifest_version": 2,
   "name": "Pokemon Showdown HD",
   "description": "Implements HD Sprites of Pokemon for Showdown",
-  "version": 1.0,
-  "host_permissions": ["*://pokemonshowdown.com/*", "*://*.pokemonshowdown.com/*", "*://psim.us/*", "*://*.psim.us/*"],
-
+  "version": "1.0",
   "browser_specific_settings": {
-    "gecko": { "id": "PokemonShowdownHD@NathanMichael" }
-  }
+    "gecko": {
+      "id": "PokemonShowdownHD@NathanMichael",
+      "strict_min_version": "91.0",
+      "data_collection_permissions": { "required": ["none"] }
+    }
+  },
+  "icons": { "48": "icon.png", "96": "icon.png", "128": "icon.png" },
+  "permissions": [
+    "webRequest",
+    "webRequestBlocking",
+    "*://pokemonshowdown.com/*",
+    "*://*.pokemonshowdown.com/*",
+    "*://psim.us/*",
+    "*://*.psim.us/*",
+    "*://raw.githubusercontent.com/*"
+  ],
+  "background": { "scripts": ["config.js", "background.js"] },
+  "content_scripts": [
+    {
+      "matches": ["*://pokemonshowdown.com/*", "*://*.pokemonshowdown.com/*", "*://psim.us/*", "*://*.psim.us/*"],
+      "js": ["config.js", "loader.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    "config.js",
+    "page.js",
+    "bg/battle-stadium.png",
+    "bg/final-stadium.png",
+    "bg/new-save.png",
+    "bg_overlay/electric-terrain.png",
+    "bg_overlay/grassy-terrain.png",
+    "bg_overlay/misty-terrain.png",
+    "bg_overlay/psycic-terrain.png",
+    "bg_overlay/trickroom.png"
+  ]
 }

@@ -12,7 +12,8 @@ const OVERLAYS = {
   psychicterrain: "bg_overlay/psycic-terrain.png",
   trickroom: "bg_overlay/trickroom.png"
 };
-const randomBackdrop = () => browser.runtime.getURL(PHD_BACKGROUNDS[Math.floor(Math.random() * PHD_BACKGROUNDS.length)]);
+const BACKGROUNDS = ["bg/battle-stadium.png", "bg/final-stadium.png", "bg/new-save.png"];
+const randomBackdrop = () => browser.runtime.getURL(BACKGROUNDS[Math.floor(Math.random() * BACKGROUNDS.length)]);
 
 browser.webRequest.onBeforeRequest.addListener(
   async (details) => {

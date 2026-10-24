@@ -1,51 +1,61 @@
 ![](https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/logo.png)
 
-A fan project that adds HD renders to Pokemon Showdown.
+A fan project that adds HD renders to Pokémon Showdown.
 
 > [!IMPORTANT]
 > - For sprite issues, such as incorrect rendering, please open an issue in this repository.
 > - Issues reported in the sprite repositories will not be addressed.
-> - This extension soly supports the new client in showdown, issues regarding old client won't be fixed
-> - Issues in non-standard modes that aren't a form of team of 6 singles or doubles will not be supported
+> - This extension only supports the new Showdown client. Issues with the old client will not be fixed.
+> - Non-standard modes that do not use teams of six in singles or doubles battles are not supported.
 
 ![](https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/showcase_preview.gif)
 
 ## How to Build
+
 > [!NOTE]
-> Currently only firefox is supported
+> Currently, only Firefox is supported.
 >
-> Side-loading extensions without a mozilla signature requires a special builds of firefox, check the section called ["**What are my options if I want to use an unsigned add-on? (advanced users)**"](https://support.mozilla.org/en-US/kb/add-on-signing-in-firefox) at the very bottom
+> Sideloading extensions without a Mozilla signature requires a special build of Firefox. See the section titled [“What are my options if I want to use an unsigned add-on? (advanced users)”](https://support.mozilla.org/en-US/kb/add-on-signing-in-firefox) at the bottom of the page.
 
-Windows:
-1. Install Python 3.x via Microsoft store or [here](https://www.python.org/downloads/)  
-2. When installing python ensure the checkbox to **add to PATH** is ticked
-3. Go to the PokemonshowdownPlus directory and right click open in terminal 
-> `python3 scripts/build.py`
-4. A folder called dist will be created and inside you can find the build
+### Windows
 
-Linux:
-Depending on your Distro you will have python by default (refer to your Distro docs) but it's essentially the same
+1. Install Python 3.x through the Microsoft Store or from the [Python website](https://www.python.org/downloads/).
+2. When installing Python, ensure that the **Add to PATH** checkbox is selected.
+3. Open the PokemonShowdownPlus directory, right-click, select **Open in Terminal**, and run:
 
-Regarding issues with building, never be ashamed to open an issue and ask for help, if anyone is being rude they will be promptly removed
+   ```sh
+   python3 scripts/build.py
+   ```
+
+4. A folder called `dist` will be created. You can find the build inside it.
+
+### Linux
+
+Depending on your distribution, Python may already be installed. Refer to your distribution’s documentation for installation instructions. The build process is otherwise the same.
+
+If you encounter issues while building, never be ashamed to open an issue and ask for help. Anyone who is rude to others will be promptly removed.
 
 ## Contributions
+
 > [!NOTE]
-> LLM-assisted code contributions are allowed, but you must review and thoroughly test the generated code. You should understand how your contribution works.  
+> LLM-assisted code contributions are allowed, but you must review and thoroughly test the generated code. You should understand how your contribution works.
 >
-> Any co-authors from AIs PRs will be blocked, as you should be the one to review and commit and not the AI.  
+> Pull requests that list AI tools as co-authors will be blocked. You should review and commit the code yourself.
 >
 > AI-generated artwork is strictly forbidden.
 
-Most of the code in this repository is plain JavaScript. Pokemon assets and links to the related asset repositories are in `assets`.
-You can find the Showdown client and server repositories under [Important resources](#important-resources).
+Most of the code in this repository is plain JavaScript. Pokémon assets and links to the related asset repositories are in `assets`.
+
+You can find the Showdown client and server repositories under [Important Resources](#important-resources).
 
 ### Testing Code
-Please test your changes on your own self-hosted Showdown instance whenever possible. This helps avoid account restrictions and disrupting other players on ladder.
 
-See [Important resources](#important-resources) for the server repository for self hosting
+Please test your changes on your own self-hosted Showdown instance whenever possible. This helps you avoid account restrictions and prevents disruption to other players on the ladder.
 
-### Important resources
+See [Important Resources](#important-resources) for the server repository, which you can use to host your own instance.
+
+### Important Resources
+
 - [Showdown Server](https://github.com/smogon/pokemon-showdown)
 - [Showdown Client](https://github.com/smogon/pokemon-showdown-client)
-- [Mozilla JS Docs](https://developer.mozilla.org/de/docs/Web/JavaScript)
-
+- [Mozilla JavaScript Documentation](https://developer.mozilla.org/de/docs/Web/JavaScript)

@@ -14,14 +14,25 @@ A fan project that adds HD renders to Pokemon Showdown.
 
 (currently only firefox is supported)
 Make sure you have python installed and run, it will create dist/firefox
+
+Windows:
+1. Install Python 3.x via Microsoft store or [here](https://www.python.org/downloads/)  
+2. When installing python ensure the checkbox to **add to PATH** is ticked
+3. Go to the PokemonshowdownPlus directory and right click open in terminal 
 > `python3 scripts/build.py`
 
-## Contributions
+Linux:
+Depending on your distro you will have python by default (refer to your Distro docs) but it's essentially the same
 
-If you use an LLM, please read the [LLM Contributions Policy](#llm-contributions-policy).
+Regarding issues with building, never be ashamed to open an issue and ask for help, if anyone is being rude they will be promptly removed
+
+## Contributions
+> [!NOTE]
+> LLM-assisted code contributions are allowed, but you must review and thoroughly test the generated code. You should understand how your contribution works.
+>
+> AI-generated artwork is strictly forbidden.
 
 Most of the code in this repository is plain JavaScript. Pokemon assets and links to the related asset repositories are in `assets`.
-
 You can find the Showdown client and server repositories under [Important resources](#important-resources).
 
 ### Testing Code
@@ -30,14 +41,9 @@ Please test your changes on your own self-hosted Showdown instance whenever poss
 
 See [Important resources](#important-resources) for the server repository for self hosting
 
-## LLM Contributions Policy
-
-> [!NOTE]
-> LLM-assisted code contributions are allowed, but you must review and thoroughly test the generated code. You should understand how your contribution works.
->
-> AI-generated artwork is strictly forbidden.
-
-## Important resources
+### Important resources
 
 - [Showdown Server](https://github.com/smogon/pokemon-showdown)
 - [Showdown Client](https://github.com/smogon/pokemon-showdown-client)
+- [Mozilla JS Docs](https://developer.mozilla.org/de/docs/Web/JavaScript)
+

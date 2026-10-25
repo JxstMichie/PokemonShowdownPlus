@@ -1,6 +1,10 @@
 ![](https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/logo.png)
 
-A fan project that adds HD renders to Pokémon Showdown.
+A fan project that adds HD renders to Pokémon Showdown. 
+<p>
+  <a href="https://addons.mozilla.org/en-US/firefox/addon/pokemon-showdown-plus/"><img src="https://raw.githubusercontent.com/JxstMichie/PokemonShowdownPlus/main/assets/github/firefox-store-icon.png" alt="Get for Firefox" width="150"></a>
+  <img src="https://raw.githubusercontent.com/JxstMichie/PokemonShowdownPlus/main/assets/github/chrome-store-icon-disabled.png" alt="Chrome (unavailable)" width="150">
+</p>
 
 > [!IMPORTANT]
 > - For sprite issues, such as incorrect rendering, please open an issue in this repository.
@@ -58,4 +62,5 @@ See [Important Resources](#important-resources) for the server repository, which
 
 - [Showdown Server](https://github.com/smogon/pokemon-showdown)
 - [Showdown Client](https://github.com/smogon/pokemon-showdown-client)
+- [Showdown Auth Server](https://github.com/smogon/pokemon-showdown-loginserver)
 - [Mozilla JavaScript Documentation](https://developer.mozilla.org/de/docs/Web/JavaScript)

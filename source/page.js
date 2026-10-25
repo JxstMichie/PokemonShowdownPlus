@@ -191,31 +191,85 @@
     return rec && rec[m[1] ? "back" : "front"] || null;
   }
 
-  const TEAM_PREVIEW_SCALE = 0.3;
-  function patchTeamPreview() {
-    if (!window.Dex || Dex.__phdPatched) return;
-    Dex.__phdPatched = true;
-    const getSpriteData = Dex.getSpriteData;
-    Dex.getSpriteData = function (pokemon, isFront, options) {
-      const data = getSpriteData.apply(this, arguments);
-      try {
-        const m = options && options.noScale && PSHOWDOWN_SPRITE_URL.exec(data.url || "");
-        if (!m) return data;
-        const place = placementOf(data);
-        const size = Math.max(data.w, data.h) * TEAM_PREVIEW_SCALE;
-        if (place) {
-          const k = size / Math.max(place.w, place.h);
-          data.w = Math.round(place.w * k);
-          data.h = Math.round(place.h * k);
-        } else {
-          data.w = data.h = Math.round(size);
+  const MULTI_SCALE = 0.85;
+  const STAGE_WIDTH = 640;
+  const ICON_SCALE = 2, ICON_GAP = 10, ICON_W = 40, ICON_H = 30;
+  const ICON_LAYOUT = "half", ICON_COLUMNS = 3, ICON_ROW_GAP = 16, ICON_STACK = "center", STAGE_HEIGHT = 360;
+
+  // TODO: Custom battle preview screen
+  // I can't figure out how to make regular team preview look good, it looks terrible
+  function iconRowSizes(count) {
+    if (ICON_LAYOUT === "half") return [Math.ceil(count / 2), Math.floor(count / 2)].filter((size) => size > 0);
+    const sizes = [];
+    for (let left = count; left > 0; left -= ICON_COLUMNS) sizes.push(Math.min(ICON_COLUMNS, left));
+    return sizes;
+  }
+
+  function iconPreview(scene) {
+    const battle = scene.battle;
+    if (!battle || !window.Dex || !Dex.getPokemonIcon) return false;
+    let changed = false;
+    for (let siden = 0; siden < 2; siden++) {
+      const side = battle.sides[siden];
+      const spriteIndex = +battle.viewpointSwitched ^ (siden % 2);
+      const box = scene.$sprites && scene.$sprites[spriteIndex];
+      const holder = box && box[0];
+      if (!side || !holder) continue;
+      const imgs = [...holder.children].filter((child) => child.tagName === "IMG");
+      const labels = [...holder.children].filter((child) => child.tagName === "DIV");
+      const count = imgs.length;
+      if (count < 1 || count !== side.pokemon.length || labels.length !== count) continue;
+      const w = ICON_W * ICON_SCALE, h = ICON_H * ICON_SCALE;
+      const rowSizes = iconRowSizes(count);
+      const rows = rowSizes.length;
+      const pitch = h + ICON_ROW_GAP;
+      const anchor = STAGE_HEIGHT * (spriteIndex === 0 ? 0.75 : 0.25);
+      const inward = spriteIndex === 0 ? -1 : 1;
+      imgs.forEach((img, i) => {
+        const pokemon = side.pokemon[i];
+        let row = 0;
+        let column = i;
+        while (column >= rowSizes[row]) {
+          column -= rowSizes[row];
+          row++;
         }
-      } catch (e) { console.warn("[phd]", e); }
-      return data;
+        const inRow = rowSizes[row];
+        const rowWidth = inRow * w + (inRow - 1) * ICON_GAP;
+        const left = Math.round(STAGE_WIDTH / 2 - rowWidth / 2 + column * (w + ICON_GAP));
+        let center = anchor;
+        if (ICON_STACK === "center") center = anchor + (row - (rows - 1) / 2) * pitch;
+        else if (ICON_STACK === "inward") center = anchor + inward * row * pitch;
+        else center = anchor - inward * row * pitch;
+        const top = Math.round(center - h / 2);
+        const icon = document.createElement("span");
+        icon.setAttribute("style", `${Dex.getPokemonIcon(pokemon, !!spriteIndex)};position:absolute;display:block;width:${ICON_W}px;height:${ICON_H}px;left:${left}px;top:${top}px;transform:scale(${ICON_SCALE});transform-origin:0 0;image-rendering:pixelated`);
+        icon.setAttribute("title", pokemon.speciesForme);
+        icon.setAttribute("aria-label", pokemon.speciesForme);
+        img.replaceWith(icon);
+        labels[i].style.left = Math.round(left + w / 2 - 40) + "px";
+        labels[i].style.top = Math.round(top + h) + "px";
+      });
+      changed = true;
+    }
+    return changed;
+  }
+
+  function patchPreviewScene() {
+    if (!window.BattleScene || BattleScene.prototype.__phdPreview) return;
+    BattleScene.prototype.__phdPreview = true;
+    const original = BattleScene.prototype.teamPreview;
+    BattleScene.prototype.teamPreview = function () {
+      const result = original.apply(this, arguments);
+      try {
+        iconPreview(this);
+      } catch (error) {
+        console.warn("[phd] team preview icons", error);
+      }
+      return result;
     };
   }
 
-  const MULTI_SCALE = 0.85, MULTI_GAP = 8;
+  const MULTI_GAP = 8;
   const MULTI_SPAN = { back: [0, 440], front: [300, 636] };
   function multiLayout(scene, mine) {
     const battle = scene.battle;
@@ -497,10 +551,10 @@
   patchSizes();
   patchBattle();
   patchPlacement();
-  patchTeamPreview();
-  setInterval(() => { patchSizes(); patchBattle(); patchPlacement(); patchTeamPreview(); }, 500);
+  patchPreviewScene();
+  setInterval(() => { patchSizes(); patchBattle(); patchPlacement(); patchPreviewScene(); }, 500);
   const fast = setInterval(() => {
-    patchSizes(); patchBattle(); patchPlacement(); patchTeamPreview();
-    if (window.Battle && window.BattleScene && window.PokemonSprite && window.Dex && Battle.prototype.__phdPatched && BattleScene.prototype.__phdPlaced && Dex.__phdPatched) clearInterval(fast);
+    patchSizes(); patchBattle(); patchPlacement(); patchPreviewScene();
+    if (window.Battle && window.BattleScene && window.PokemonSprite && window.Dex && Battle.prototype.__phdPatched && BattleScene.prototype.__phdPlaced && BattleScene.prototype.__phdPreview) clearInterval(fast);
   }, 20);
 })();

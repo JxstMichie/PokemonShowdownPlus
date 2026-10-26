@@ -38,6 +38,8 @@
     "bg_overlay/grassy-terrain.png",
     "bg_overlay/misty-terrain.png",
     "bg_overlay/psycic-terrain.png",
-    "bg_overlay/trickroom.png"
+    "bg_overlay/trickroom.png",
+    "bg_overlay/magicroom.png",
+    "bg_overlay/wonderroom.png"
   ]
 }

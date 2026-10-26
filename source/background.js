@@ -4,13 +4,15 @@ const HOSTS = ["*://pokemonshowdown.com", "*://*.pokemonshowdown.com", "*://psim
 const HOST = "(?:[a-z0-9-]+\\.)*(?:pokemonshowdown\\.com|psim\\.us)";
 const PATTERN = new RegExp(`^https?://${HOST}/sprites/(ani(?:-back)?(?:-shiny)?)/([a-z0-9-]+)\\.gif(?:[?#].*)?$`);
 const BACKDROP = new RegExp(`^https?://${HOST}/sprites/gen6bgs/[^/?#]+$`);
-const FX = new RegExp(`^https?://${HOST}/fx/weather-(mistyterrain|electricterrain|grassyterrain|psychicterrain|trickroom)\\.png(?:[?#].*)?$`);
+const FX = new RegExp(`^https?://${HOST}/fx/weather-(mistyterrain|electricterrain|grassyterrain|psychicterrain|trickroom|magicroom|wonderroom)\\.png(?:[?#].*)?$`);
 const OVERLAYS = {
   mistyterrain: "bg_overlay/misty-terrain.png",
   electricterrain: "bg_overlay/electric-terrain.png",
   grassyterrain: "bg_overlay/grassy-terrain.png",
   psychicterrain: "bg_overlay/psycic-terrain.png",
-  trickroom: "bg_overlay/trickroom.png"
+  trickroom: "bg_overlay/trickroom.png",
+  magicroom: "bg_overlay/magicroom.png",
+  wonderroom: "bg_overlay/wonderroom.png"
 };
 const BACKGROUNDS = ["bg/battle-stadium.png", "bg/final-stadium.png", "bg/new-save.png"];
 const randomBackdrop = () => browser.runtime.getURL(BACKGROUNDS[Math.floor(Math.random() * BACKGROUNDS.length)]);

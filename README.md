@@ -37,7 +37,8 @@ A fan project that adds HD renders to Pokémon Showdown.
 
 Depending on your distribution, Python may already be installed. Refer to your distribution’s documentation for installation instructions. The build process is otherwise the same.
 
-If you encounter issues while building, never be ashamed to open an issue and ask for help. Anyone who is rude to others will be promptly removed.
+### Having Problems?
+If you encounter issues while building, never be ashamed to [open an issue](https://github.com/JxstMichie/PokemonShowdownPlus/issues) and ask for help. Anyone who is rude to others will be promptly removed.
 
 ## Contributions
 

@@ -25,12 +25,16 @@
     {
       "matches": ["*://pokemonshowdown.com/*", "*://*.pokemonshowdown.com/*", "*://psim.us/*", "*://*.psim.us/*"],
       "js": ["config.js", "loader.js"],
+      "css": ["ui/panels.css"],
       "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
     "config.js",
     "page.js",
+    "ui/component.js",
+    "ui/panels.js",
+    "ui/assets/*",
     "bg/battle-stadium.png",
     "bg/final-stadium.png",
     "bg/new-save.png",

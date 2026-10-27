@@ -23,11 +23,12 @@
     return Math.round(totalMs) || 2000;
   }
 
-  const [list, placements, layout, moves] = await Promise.all([
+  const [list, placements, layout, moves, ui] = await Promise.all([
     fetch(runtime.getURL("sprites.txt")).then((response) => response.text()),
     fetch(runtime.getURL("placements.json")).then((response) => response.json()),
     fetch(runtime.getURL("doubles.json")).then((response) => response.json()).then((data) => ({ doubles: data.doubles || null, hpBars: data.hpBars || null })).catch(() => null),
     fetch(runtime.getURL("move.json")).then((response) => response.json()).catch(() => null), //Might have some errors, should be a temp solution 
+    fetch(runtime.getURL("ui/data.json")).then((response) => response.json()),
   ]);
   const send = (name, detail) => document.dispatchEvent(new CustomEvent(name, { detail: JSON.stringify(detail) }));
 
@@ -42,11 +43,11 @@
     send("phd-duration", { url, ms: durations[url] });
   });
 
-  for (const file of ["config.js", "page.js"]) {
+  for (const file of ["config.js", "ui/component.js", "page.js", "ui/panels.js"]) {
     const script = document.createElement("script");
     script.src = runtime.getURL(file);
     script.async = false;
-    script.dataset.cfg = JSON.stringify({ size: 192, list, placements, doubles: layout && layout.doubles, hpBars: layout && layout.hpBars, lunge: moves && moves.lunge || [] });
+    script.dataset.cfg = JSON.stringify({ size: 192, list, placements, doubles: layout && layout.doubles, hpBars: layout && layout.hpBars, lunge: moves && moves.lunge || [], ui });
     (document.head || document.documentElement).appendChild(script);
     script.onload = () => script.remove();
   }

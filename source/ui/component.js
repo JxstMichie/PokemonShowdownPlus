@@ -7,8 +7,12 @@
   const { view, shapes, layout, colors, bar, sheet, draw, statusLabels, fonts } = D;
   const NAME = D.name;
   const STYLES = ["wobble", "minimal", "none"];
-  let megaStyle = "wobble";
-  try { megaStyle = JSON.parse(script.dataset.cfg).megaStyle || megaStyle; } catch (error) {}
+  let megaStyle = "wobble", pauseColors = false;
+  try {
+    const cfg = JSON.parse(script.dataset.cfg);
+    megaStyle = cfg.megaStyle || megaStyle;
+    pauseColors = !!cfg.pauseColors;
+  } catch (error) {}
   const ASSETS = script ? new URL("assets/", script.src).href : "assets/";
   const SHEET_URL = ASSETS + "battle-sprites.png";
 
@@ -66,11 +70,10 @@
 
 
   const RAINBOW = ["#ff3b3b", "#ff9a1f", "#ffe92e", "#3bff6a", "#2ee6ff", "#4d7bff", "#b84dff", "#ff3bd0", "#ff3b3b"];
-  const megaCss = (width) => `@keyframes mega-scroll{from{transform:translateX(0)}to{transform:translateX(-${width}px)}}@keyframes mega-glow{0%,100%{filter:drop-shadow(0 0 3px #ffb122) drop-shadow(0 0 7px #ff8a1f)}6%{filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 16px #ffb122)}14%{filter:drop-shadow(0 0 4px #ffd35a) drop-shadow(0 0 10px #ff8a1f)}}@keyframes mega-flare{0%,100%{opacity:.6}6%{opacity:1}14%{opacity:.75}28%{opacity:.6}}.glow{animation:mega-glow 3.2s ease-out infinite}[data-mega] .scroll{animation:mega-scroll 3s linear infinite}[data-mega] .flare{animation:mega-flare 3.2s ease-out infinite}`;
+  const megaCss = (width) => `@keyframes mega-scroll{from{transform:translateX(0)}to{transform:translateX(-${width}px)}}@keyframes mega-glow{0%,100%{filter:drop-shadow(0 0 3px #ffb122) drop-shadow(0 0 7px #ff8a1f)}6%{filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 16px #ffb122)}14%{filter:drop-shadow(0 0 4px #ffd35a) drop-shadow(0 0 10px #ff8a1f)}}@keyframes mega-flare{0%,100%{opacity:.6}6%{opacity:1}14%{opacity:.75}28%{opacity:.6}}.glow{animation:mega-glow 3.2s ease-out infinite}.paused{animation-play-state:paused!important}[data-mega] .scroll{animation:mega-scroll 3s linear infinite}[data-mega] .flare{animation:mega-flare 3.2s ease-out infinite}`;
 
   const WOBBLE = { amp: 60, freq: 0.058, speed: 6.5, thickness: 7, glow: 17 };
-  let tuning = { ...WOBBLE };
-  try { tuning = { ...tuning, ...JSON.parse(script.dataset.cfg).wobble }; } catch (error) {}
+  const tuning = WOBBLE;
 
   function drawMega(shape, wobble) {
     const o = tuning;
@@ -79,7 +82,7 @@
     const x = Math.min(...xs), y = Math.min(...ys), w = Math.max(...xs) - x, h = Math.max(...ys) - y;
     const points = shape.map(([px, py]) => px + "," + py).join(" ");
     const stops = RAINBOW.map((c, i) => `<stop offset="${i / (RAINBOW.length - 1)}" stop-color="${c}"/>`).join("");
-    const strip = `<g class="scroll"><rect x="${x}" y="${y - m}" width="${w}" height="${h + 2 * m}" fill="url(#mega-rb)"/><rect x="${x + w}" y="${y - m}" width="${w}" height="${h + 2 * m}" fill="url(#mega-rb)"/></g>`;
+    const strip = `<g class="scroll${pauseColors ? " paused" : ""}"><rect x="${x}" y="${y - m}" width="${w}" height="${h + 2 * m}" fill="url(#mega-rb)"/><rect x="${x + w}" y="${y - m}" width="${w}" height="${h + 2 * m}" fill="url(#mega-rb)"/></g>`;
     const ring = (stroke) => `<polygon points="${points}" style="fill:none" stroke="#fff" stroke-width="${stroke}" stroke-linejoin="round"/>`;
     const region = `x="${x - m}" y="${y - m}" width="${w + 2 * m}" height="${h + 2 * m}"`;
     const fx = o.freq, fy = o.freq * 1.5;
@@ -176,9 +179,13 @@
     _draw(shownHP) {
       this._shownHP = shownHP;
       //overflow visible must only hit the outer svg because a plain svg rule would also stop the sprite svgs from cropping
+      const previous = this.shadowRoot.querySelector("svg");
+      const clock = previous && previous.getCurrentTime ? previous.getCurrentTime() : 0;
       this.shadowRoot.innerHTML = `<style>:host{display:inline-block;width:464px;max-width:100%;vertical-align:middle;contain:layout style}:host>svg{display:block;width:100%;height:auto;overflow:visible}</style>${renderSVG(this._state, shownHP)}`;
       //restarting a css animation on every redraw would replay the status fade so all animations are pinned to the page timeline
       this.shadowRoot.getAnimations().forEach((animation) => (animation.startTime = 0));
+      const fresh = this.shadowRoot.querySelector("svg");
+      if (clock && fresh.setCurrentTime) fresh.setCurrentTime(clock);
       this._fit();
     }
 
@@ -231,13 +238,17 @@
     }
   }
 
-  global.PokemonHP = { data: D, renderSVG, shapeOf, defaults: WOBBLE };
+  global.PokemonHP = { data: D, renderSVG, shapeOf };
   if (global.document) {
     global.document.addEventListener("phd-settings", (event) => {
       const detail = JSON.parse(event.detail);
       if (detail.megaStyle) megaStyle = detail.megaStyle;
-      if (detail.wobble) tuning = { ...WOBBLE, ...detail.wobble };
-      global.document.querySelectorAll("pokemon-hp").forEach((panel) => panel.setState && panel.setState({ megaStyle }, { animate: false }));
+      if (typeof detail.pauseColors === "boolean") pauseColors = detail.pauseColors;
+      global.document.querySelectorAll("pokemon-hp").forEach((panel) => {
+        if (!panel.setState) return;
+        if (detail.megaStyle) panel.setState({ megaStyle }, { animate: false });
+        else panel.shadowRoot.querySelectorAll(".scroll").forEach((strip) => strip.classList.toggle("paused", pauseColors));
+      });
     });
   }
   if (global.customElements && !global.customElements.get("pokemon-hp")) global.customElements.define("pokemon-hp", PokemonHPPanel);

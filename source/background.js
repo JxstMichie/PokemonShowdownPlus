@@ -33,3 +33,5 @@ browser.webRequest.onBeforeRequest.addListener(
   },
   ["blocking"]
 );
+
+browser.browserAction.onClicked.addListener(() => browser.tabs.create({ url: browser.runtime.getURL("ui/settings.html") }));

@@ -9,8 +9,8 @@
 .phd-row.player { left: 0; bottom: var(--player-bottom); }
 .phd-row.enemy { right: calc(var(--overhang) * -1); top: var(--enemy-top); flex-direction: row-reverse; }
 .phd-row pokemon-hp { flex: none; width: var(--panel); max-width: none; }
-.phd-row.player pokemon-hp { margin-right: calc(var(--panel) * -.2); }
-.phd-row.enemy pokemon-hp { margin-left: calc(var(--panel) * -.2); }
+.phd-row.player pokemon-hp { margin-right: 46px; }
+.phd-row.enemy pokemon-hp { margin-left: 46px; }
 
 .innerbattle.phd-on .statbar.phd-chips { position: absolute; display: block; width: var(--box); min-height: 0; padding: 0; }
 .innerbattle.phd-on .phd-chips .status { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--gap); min-height: 0; padding: 0; }

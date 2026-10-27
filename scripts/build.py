@@ -7,7 +7,7 @@ HERE = Path(__file__).resolve().parent.parent
 SOURCE = HERE / "source"
 DATA = HERE / "data"
 OUT = HERE / "dist" / "firefox" / "pokemon-showdown-hd.xpi"
-CODE = ["manifest.json", "config.js", "background.js", "loader.js", "page.js", "exceptions.js", "ui/component.js", "ui/panels.js", "ui/panels.css", "ui/data.json"]
+CODE = ["manifest.json", "config.js", "background.js", "loader.js", "page.js", "exceptions.js", "ui/component.js", "ui/panels.js", "ui/panels.css", "ui/data.json", "redraw.html", "redraw.js", "ui/settings.html", "ui/settings.js"]
 JSON = ["doubles.json", "move.json", "sprites.txt", "placements.json"]
 
 MINIFY = ["ui/component.js", "ui/panels.js"]

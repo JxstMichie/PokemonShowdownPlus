@@ -50,10 +50,15 @@
     return layer && make("div", "phd-row " + (enemy ? "enemy" : "player"), layer);
   });
 
-  const panelOf = (sprite) => owned(sprite, "__phdPanel", () => {
+  //panels belong to a slot and not to a sprite so a hidden panel keeps its place and the other slot never slides over
+  const panelOf = (sprite, slot) => {
     const row = rowOf(sprite.scene, sprite.isFrontSprite);
-    return row && make("pokemon-hp", "", row);
-  });
+    if (!row) return null;
+    const panel = owned((row.__phdPanels = row.__phdPanels || {}), slot, () => make("pokemon-hp", "", row));
+    panel.__phdSprite = sprite;
+    sprite.__phdPanel = panel;
+    return panel;
+  };
 
   const chipsBoxOf = (sprite) => owned(sprite, "__phdChips", () => {
     const layer = layerOf(sprite.scene);
@@ -115,31 +120,39 @@
     }
   }
 
-  //rows are flex containers so panels pack against the corner and when the first pokemon faints the second slides over
   function arrange(scene) {
     if (!scene.battle) return;
     for (const [side, enemy] of sidesOf(scene.battle)) {
-      const shown = ((side && side.active) || []).map((mon) => mon && mon.sprite).filter((sprite) => sprite && sprite.__phdPanel && sprite.__phdPanel.style.display !== "none");
-      if (!shown.length) continue;
-      shown.forEach((sprite, index) => {
-        const panel = sprite.__phdPanel;
-        //order reorders without moving the node because moving it would fire disconnectedCallback and cancel the hp animation
-        panel.style.order = index;
-        const flushLeft = !enemy && index === 0;
+      const row = scene.__phdRows && scene.__phdRows[enemy];
+      const panels = (row && row.__phdPanels) || {};
+      for (const slot in panels) {
+        const panel = panels[slot];
+        panel.style.order = slot;
+        const flushLeft = !enemy && +slot === 0;
         if (panel.state.flushLeft !== flushLeft) panel.setState({ flushLeft });
-        drawChips(sprite, panel);
-      });
+        if (panel.style.visibility !== "hidden" && panel.__phdSprite) drawChips(panel.__phdSprite, panel);
+      }
     }
     updateTeams(scene);
   }
 
+  function itemStyleOf(sprite, mon) {
+    let item = mon.item;
+    if (!sprite.isFrontSprite) {
+      const room = window.PS && PS.rooms && PS.rooms[sprite.scene.battle.id];
+      const side = room && room.request && room.request.side ? room.request.side.pokemon : [];
+      item = (side.find((entry) => entry.ident === mon.ident) || mon).item;
+    }
+    return item && item !== "(mail)" ? Dex.getItemIcon(item) : "";
+  }
+
   function sync(sprite, mon) {
-    const panel = panelOf(sprite);
+    const panel = panelOf(sprite, Math.max(0, mon.side.active.indexOf(mon)));
     if (!panel || !panel.setState) return;
     //a new pokemon or a panel that was hidden shows hp instantly so the bar does not slide up like a heal
-    const isNew = panel.__phdIdent !== mon.ident || panel.style.display !== "block";
+    const isNew = panel.__phdIdent !== mon.ident || panel.style.visibility === "hidden";
     panel.__phdIdent = mon.ident;
-    panel.style.display = "block";
+    panel.style.visibility = "";
     panel.setState({
       side: sprite.isFrontSprite ? "enemy" : "player",
       compact: sprite.scene.activeCount > 1,
@@ -148,7 +161,9 @@
       maxHP: mon.maxhp || 100, //hp is a %
       hp: mon.fainted ? 0 : mon.hp,
       gender: GENDER[mon.gender] || "none",
-      status: mon.fainted ? "fainted" : STATUS[mon.status] || "none"
+      status: mon.fainted ? "fainted" : STATUS[mon.status] || "none",
+      itemStyle: itemStyleOf(sprite, mon),
+      mega: /mega/i.test((sprite.sp && sprite.sp.url) || "") || /-mega/i.test(mon.speciesForme || "")
     }, { animate: !isNew });
     arrange(sprite.scene);
   }
@@ -166,7 +181,7 @@
           if (this.$statbar && mon.isActive()) {
             sync(this, mon);
           } else if (this.__phdPanel) {
-            this.__phdPanel.style.display = "none";
+            if (this.__phdPanel.__phdIdent === mon.ident) this.__phdPanel.style.visibility = "hidden";
             if (this.__phdChips) this.__phdChips.style.display = "none";
             arrange(this.scene);
           }
@@ -176,6 +191,16 @@
         return result;
       };
     }
+    const animTransform = PokemonSprite.prototype.animTransform;
+    PokemonSprite.prototype.animTransform = function (mon) {
+      const result = animTransform.apply(this, arguments);
+      try {
+        if (this.$statbar && this.__phdPanel && mon.isActive()) sync(this, mon);
+      } catch (error) {
+        console.warn("[phd-hp]", error);
+      }
+      return result;
+    };
     return true;
   }
 

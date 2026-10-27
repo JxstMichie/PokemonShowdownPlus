@@ -29,11 +29,11 @@
     fetch(runtime.getURL("doubles.json")).then((response) => response.json()).then((data) => ({ doubles: data.doubles || null, hpBars: data.hpBars || null })).catch(() => null),
     fetch(runtime.getURL("move.json")).then((response) => response.json()).catch(() => null), //Might have some errors, should be a temp solution 
     fetch(runtime.getURL("ui/data.json")).then((response) => response.json()),
-    browser.storage.local.get("megaStyle").catch(() => ({})),
+    browser.storage.local.get(["megaStyle", "wobble"]).catch(() => ({})),
   ]);
   const send = (name, detail) => document.dispatchEvent(new CustomEvent(name, { detail: JSON.stringify(detail) }));
 
-  browser.storage.onChanged.addListener((changes) => changes.megaStyle && send("phd-settings", { megaStyle: changes.megaStyle.newValue }));
+  browser.storage.onChanged.addListener((changes) => send("phd-settings", { megaStyle: changes.megaStyle && changes.megaStyle.newValue, wobble: changes.wobble && changes.wobble.newValue }));
 
   const durations = {};
   document.addEventListener("phd-duration-request", async (event) => {
@@ -50,7 +50,7 @@
     const script = document.createElement("script");
     script.src = runtime.getURL(file);
     script.async = false;
-    script.dataset.cfg = JSON.stringify({ size: 192, list, placements, doubles: layout && layout.doubles, hpBars: layout && layout.hpBars, lunge: moves && moves.lunge || [], ui, megaStyle: settings && settings.megaStyle });
+    script.dataset.cfg = JSON.stringify({ size: 192, list, placements, doubles: layout && layout.doubles, hpBars: layout && layout.hpBars, lunge: moves && moves.lunge || [], ui, megaStyle: settings && settings.megaStyle, wobble: settings && settings.wobble });
     (document.head || document.documentElement).appendChild(script);
     script.onload = () => script.remove();
   }

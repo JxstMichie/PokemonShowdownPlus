@@ -69,9 +69,11 @@
   const megaCss = (width) => `@keyframes mega-scroll{from{transform:translateX(0)}to{transform:translateX(-${width}px)}}@keyframes mega-glow{0%,100%{filter:drop-shadow(0 0 3px #ffb122) drop-shadow(0 0 7px #ff8a1f)}6%{filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 16px #ffb122)}14%{filter:drop-shadow(0 0 4px #ffd35a) drop-shadow(0 0 10px #ff8a1f)}}@keyframes mega-flare{0%,100%{opacity:.6}6%{opacity:1}14%{opacity:.75}28%{opacity:.6}}.glow{animation:mega-glow 3.2s ease-out infinite}[data-mega] .scroll{animation:mega-scroll 3s linear infinite}[data-mega] .flare{animation:mega-flare 3.2s ease-out infinite}`;
 
   const WOBBLE = { amp: 60, freq: 0.058, speed: 6.5, thickness: 7, glow: 17 };
+  let tuning = { ...WOBBLE };
+  try { tuning = { ...tuning, ...JSON.parse(script.dataset.cfg).wobble }; } catch (error) {}
 
   function drawMega(shape, wobble) {
-    const o = { ...WOBBLE, ...(wobble || {}) };
+    const o = tuning;
     const xs = shape.map((point) => point[0]), ys = shape.map((point) => point[1]);
     const m = 60 + o.amp + o.thickness + o.glow * 2;
     const x = Math.min(...xs), y = Math.min(...ys), w = Math.max(...xs) - x, h = Math.max(...ys) - y;
@@ -81,8 +83,11 @@
     const ring = (stroke) => `<polygon points="${points}" style="fill:none" stroke="#fff" stroke-width="${stroke}" stroke-linejoin="round"/>`;
     const region = `x="${x - m}" y="${y - m}" width="${w + 2 * m}" height="${h + 2 * m}"`;
     const fx = o.freq, fy = o.freq * 1.5;
-    const wob = `<filter id="mega-wob" filterUnits="userSpaceOnUse" ${region}><feMorphology in="SourceGraphic" operator="dilate" radius="${o.thickness}" result="d"/><feTurbulence type="fractalNoise" baseFrequency="${fx} ${fy}" numOctaves="2" seed="3" result="n"><animate attributeName="baseFrequency" dur="${o.speed}s" repeatCount="indefinite" values="${fx} ${fy};${fx * 1.6} ${fy * 0.7};${fx} ${fy}"/></feTurbulence><feDisplacementMap in="d" in2="n" scale="${o.amp}" xChannelSelector="R" yChannelSelector="G"/></filter>`;
-    const outer = `<polygon points="${points}" style="fill:#fff" filter="url(#mega-wob)"/><polygon points="${points}" style="fill:#000"/>`;
+    const sweep = o.speed / 2;
+    const flame = (name, begin) => `<filter id="mega-wob-${name}" filterUnits="userSpaceOnUse" ${region}><feMorphology in="SourceGraphic" operator="dilate" radius="${o.thickness}" result="d"/><feTurbulence type="fractalNoise" baseFrequency="${fx} ${fy}" numOctaves="2" seed="3" result="n"><animate attributeName="baseFrequency" dur="${sweep}s" begin="${begin}s" repeatCount="indefinite" values="${fx * 1.6} ${fy * 0.7};${fx} ${fy}"/></feTurbulence><feDisplacementMap in="d" in2="n" scale="${o.amp}" xChannelSelector="R" yChannelSelector="G"/></filter>`;
+    const wob = flame("a", 0) + flame("b", -sweep / 2);
+    const layer = (name, begin) => `<polygon points="${points}" style="fill:#fff" opacity="0" filter="url(#mega-wob-${name})"><animate attributeName="opacity" dur="${sweep}s" begin="${begin}s" repeatCount="indefinite" values="0;1;0"/></polygon>`;
+    const outer = layer("a", 0) + layer("b", -sweep / 2) + `<polygon points="${points}" style="fill:#000"/>`;
     const edge = wobble ? outer : ring(5);
     const glow = wobble ? outer : ring(14);
     return `<g data-mega="" pointer-events="none">` +
@@ -226,10 +231,12 @@
     }
   }
 
-  global.PokemonHP = { data: D, renderSVG, shapeOf };
+  global.PokemonHP = { data: D, renderSVG, shapeOf, defaults: WOBBLE };
   if (global.document) {
     global.document.addEventListener("phd-settings", (event) => {
-      megaStyle = JSON.parse(event.detail).megaStyle || "wobble";
+      const detail = JSON.parse(event.detail);
+      if (detail.megaStyle) megaStyle = detail.megaStyle;
+      if (detail.wobble) tuning = { ...WOBBLE, ...detail.wobble };
       global.document.querySelectorAll("pokemon-hp").forEach((panel) => panel.setState && panel.setState({ megaStyle }, { animate: false }));
     });
   }

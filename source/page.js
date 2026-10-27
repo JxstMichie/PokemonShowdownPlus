@@ -191,6 +191,8 @@
     return rec && rec[m[1] ? "back" : "front"] || null;
   }
 
+  const SHORT_HEIGHT = 90;
+  const SHORT_LIFT = 50;
   const MULTI_SCALE = 0.85;
   const STAGE_WIDTH = 640;
   const ICON_SCALE = 2, ICON_GAP = 10, ICON_W = 40, ICON_H = 30;
@@ -482,6 +484,8 @@
           cx = place.x + place.w / 2 + anim.x;
           cy = place.y + place.h / 2 + anim.y;
         }
+        const content = obj.__phdFront === false ? hitboxes[actionUrl({ sp: obj }, "")] : null;
+        if (content && content.h * height < SHORT_HEIGHT) cy -= SHORT_LIFT;
         return Object.assign({}, css, { left: Math.round(cx - width / 2), top: Math.round(cy - height / 2), width: Math.round(width), height: Math.round(height) });
       } catch (e) { console.warn("[phd]", e); return css; }
     };

@@ -1,2 +1,5 @@
-dist/*
-ani/*
+dist/
+/scripts/precompile-placement.py
+scripts/test/ani-coverage/*.txt
+scripts/__pycache__/
+ani/

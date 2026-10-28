@@ -32,6 +32,8 @@ with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as z:
     z.write(HERE / "assets" / "icon.png", "icon.png")
     for p in sorted((HERE / "assets" / "ui").glob("*")):
         z.write(p, f"ui/assets/{p.name}")
+    for p in sorted((HERE / "assets" / "fx").glob("*")):
+        z.write(p, f"fx/{p.name}")
     for folder in ("bg", "bg_overlay"):
         for p in sorted((HERE / "assets" / folder).glob("*.png")):
             z.write(p, f"{folder}/{p.name}")

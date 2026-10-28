@@ -25,7 +25,7 @@
 
   const [list, placements, layout, moves, ui, settings] = await Promise.all([
     fetch(runtime.getURL("sprites.txt")).then((response) => response.text()),
-    fetch(runtime.getURL("placements.json")).then((response) => response.json()),
+    fetch(runtime.getURL("render_metadata.json")).then((response) => response.json()),
     fetch(runtime.getURL("doubles.json")).then((response) => response.json()).then((data) => ({ doubles: data.doubles || null, hpBars: data.hpBars || null })).catch(() => null),
     fetch(runtime.getURL("move.json")).then((response) => response.json()).catch(() => null), //Might have some errors, should be a temp solution 
     fetch(runtime.getURL("ui/data.json")).then((response) => response.json()),

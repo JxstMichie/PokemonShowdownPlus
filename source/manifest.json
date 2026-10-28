@@ -21,6 +21,7 @@
     "*://*.psim.us/*",
     "*://raw.githubusercontent.com/*"
   ],
+  "optional_permissions": ["*://*/*"],
   "browser_action": { "default_icon": "icon.png", "default_title": "Pokemon Showdown HD settings" },
   "background": { "scripts": ["config.js", "background.js"] },
   "content_scripts": [
@@ -34,9 +35,11 @@
   "web_accessible_resources": [
     "config.js",
     "page.js",
+    "debug.js",
     "ui/component.js",
     "ui/panels.js",
     "ui/assets/*",
+    "fx/*",
     "bg/battle-stadium.png",
     "bg/final-stadium.png",
     "bg/new-save.png",

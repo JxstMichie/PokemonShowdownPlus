@@ -3,6 +3,13 @@
 <title>Pokemon Showdown HD settings</title>
 <link rel="stylesheet" href="panels.css">
 <style>body{font-family:sans-serif;padding:24px;background:#6a8}body.dark{background:#222;color:#fff}fieldset{display:inline-block;margin-bottom:12px}.row{display:flex;gap:70px;margin:16px 0}.row pokemon-hp{width:300px;flex:none}</style>
+<h2>Custom domains</h2>
+<div id="domainbox">
+  <input id="domain" placeholder="localhost or 192.168.1.5"> <button id="add">Add</button>
+  <ul id="domains"></ul>
+</div>
+<h2>Debug</h2>
+<label><input type="checkbox" id="apngdata"> Show apng data</label>
 <h2>Mega outline</h2>
 <fieldset>
   <label><input type="radio" name="style" value="wobble" checked> Wobble</label>
@@ -12,6 +19,7 @@
 <label><input type="checkbox" id="pause"> Pause colors</label>
 <h2>Preview</h2>
 <label><input type="checkbox" id="dark"> dark</label>
+<label><input type="checkbox" id="dynamax"> dynamax</label>
 <label>hp <input type="range" id="hp" min="0" max="100" value="70"></label>
 <div class="phd-layer" style="position:static;overflow:visible">
   <div class="row"><pokemon-hp id="p1"></pokemon-hp><pokemon-hp id="p2"></pokemon-hp></div>

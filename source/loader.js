@@ -29,11 +29,11 @@
     fetch(runtime.getURL("doubles.json")).then((response) => response.json()).then((data) => ({ doubles: data.doubles || null, hpBars: data.hpBars || null })).catch(() => null),
     fetch(runtime.getURL("move.json")).then((response) => response.json()).catch(() => null), //Might have some errors, should be a temp solution 
     fetch(runtime.getURL("ui/data.json")).then((response) => response.json()),
-    browser.storage.local.get(["megaStyle", "pauseColors"]).catch(() => ({})),
+    browser.storage.local.get(["megaStyle", "pauseColors", "showApngData"]).catch(() => ({})),
   ]);
   const send = (name, detail) => document.dispatchEvent(new CustomEvent(name, { detail: JSON.stringify(detail) }));
 
-  browser.storage.onChanged.addListener((changes) => send("phd-settings", { megaStyle: changes.megaStyle && changes.megaStyle.newValue, pauseColors: changes.pauseColors && changes.pauseColors.newValue }));
+  browser.storage.onChanged.addListener((changes) => send("phd-settings", { megaStyle: changes.megaStyle && changes.megaStyle.newValue, pauseColors: changes.pauseColors && changes.pauseColors.newValue, showApngData: changes.showApngData && changes.showApngData.newValue }));
 
   const durations = {};
   document.addEventListener("phd-duration-request", async (event) => {
@@ -46,11 +46,11 @@
     send("phd-duration", { url, ms: durations[url] });
   });
 
-  for (const file of ["config.js", "ui/component.js", "page.js", "ui/panels.js"]) {
+  for (const file of ["config.js", "ui/component.js", "page.js", "ui/panels.js", "debug.js"]) {
     const script = document.createElement("script");
     script.src = runtime.getURL(file);
     script.async = false;
-    script.dataset.cfg = JSON.stringify({ size: 192, list, placements, doubles: layout && layout.doubles, hpBars: layout && layout.hpBars, lunge: moves && moves.lunge || [], ui, megaStyle: settings && settings.megaStyle, pauseColors: settings && settings.pauseColors });
+    script.dataset.cfg = JSON.stringify({ size: 192, list, placements, doubles: layout && layout.doubles, hpBars: layout && layout.hpBars, lunge: moves && moves.lunge || [], ui, megaStyle: settings && settings.megaStyle, pauseColors: settings && settings.pauseColors, showApngData: settings && settings.showApngData });
     (document.head || document.documentElement).appendChild(script);
     script.onload = () => script.remove();
   }

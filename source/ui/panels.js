@@ -34,7 +34,7 @@
   };
 
   //later elements draw on top so the layer goes before the turn badge and message bar
-  const layerOf = (scene) => owned(scene, "__phdLayer", () => {
+  const layerOf = (scene) => !scene ? null : owned(scene, "__phdLayer", () => {
     const stage = scene.$battle && scene.$battle[0];
     if (!stage) return null;
     stage.classList.add("phd-on");
@@ -130,7 +130,7 @@
         panel.style.order = slot;
         const flushLeft = !enemy && +slot === 0;
         if (panel.state.flushLeft !== flushLeft) panel.setState({ flushLeft });
-        if (panel.style.visibility !== "hidden" && panel.__phdSprite) drawChips(panel.__phdSprite, panel);
+        if (panel.style.visibility !== "hidden" && panel.__phdSprite && panel.__phdSprite.scene) drawChips(panel.__phdSprite, panel);
       }
     }
     updateTeams(scene);
@@ -147,6 +147,7 @@
   }
 
   function sync(sprite, mon) {
+    if (!sprite.scene) return;
     const panel = panelOf(sprite, Math.max(0, mon.side.active.indexOf(mon)));
     if (!panel || !panel.setState) return;
     //a new pokemon or a panel that was hidden shows hp instantly so the bar does not slide up like a heal
@@ -163,7 +164,8 @@
       gender: GENDER[mon.gender] || "none",
       status: mon.fainted ? "fainted" : STATUS[mon.status] || "none",
       itemStyle: itemStyleOf(sprite, mon),
-      mega: /mega/i.test((sprite.sp && sprite.sp.url) || "") || /-mega/i.test(mon.speciesForme || "")
+      dynamax: !!(mon.volatiles && mon.volatiles.dynamax),
+      mega: !!(window.Dex && (s => s.isMega || s.isPrimal)(Dex.species.get(mon.speciesForme || "")))
     }, { animate: !isNew });
     arrange(sprite.scene);
   }
@@ -178,7 +180,9 @@
       PokemonSprite.prototype[name] = function (mon) {
         const result = original.apply(this, arguments);
         try {
-          if (this.$statbar && mon.isActive()) {
+          if (!this.scene) {
+            return result;
+          } else if (this.$statbar && mon.isActive()) {
             sync(this, mon);
           } else if (this.__phdPanel) {
             if (this.__phdPanel.__phdIdent === mon.ident) this.__phdPanel.style.visibility = "hidden";
@@ -195,7 +199,7 @@
     PokemonSprite.prototype.animTransform = function (mon) {
       const result = animTransform.apply(this, arguments);
       try {
-        if (this.$statbar && this.__phdPanel && mon.isActive()) sync(this, mon);
+        if (this.scene && this.$statbar && this.__phdPanel && mon.isActive()) sync(this, mon);
       } catch (error) {
         console.warn("[phd-hp]", error);
       }

@@ -7,6 +7,7 @@
   const { view, shapes, layout, colors, bar, sheet, draw, statusLabels, fonts } = D;
   const NAME = D.name;
   const STYLES = ["wobble", "minimal", "none"];
+  const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
   let megaStyle = "wobble", pauseColors = false;
   try {
     const cfg = JSON.parse(script.dataset.cfg);
@@ -16,7 +17,6 @@
   const ASSETS = script ? new URL("assets/", script.src).href : "assets/";
   const SHEET_URL = ASSETS + "battle-sprites.png";
 
-  const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
   const ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
   const escapeXML = (value) => String(value).replace(/[&<>"']/g, (c) => ENTITIES[c]);
 
@@ -58,6 +58,7 @@
     state.compact = !!state.compact;
     state.flushLeft = !!state.flushLeft;
     state.mega = !!state.mega;
+    state.dynamax = !!state.dynamax;
     state.megaStyle = STYLES.includes(state.megaStyle) ? state.megaStyle : megaStyle;
     state.itemStyle = String(state.itemStyle ?? "");
     return state;
@@ -122,9 +123,13 @@
 
   const ITEM = { size: 24, scale: 3.75, x: -270, y: 0 };
 
+  /*
+    We disable the items slot for megas and dynamax so it does not obscure the logo
+  */
   function drawItem(state) {
-    if (!state.mega && !state.itemStyle) return "";
+    if (!state.dynamax && !state.mega && !state.itemStyle) return "";
     const half = (ITEM.size * ITEM.scale) / 2;
+    if (state.dynamax) return `<image data-item="" href="${ASSETS}dynamax.png" x="${ITEM.x - half}" y="${ITEM.y - half}" width="${half * 2}" height="${half * 2}" style="image-rendering:pixelated"/>`;
     if (state.mega) return `<image data-item="" class="glow" href="${ASSETS}mega.png" x="${ITEM.x - half}" y="${ITEM.y - half}" width="${half * 2}" height="${half * 2}" style="image-rendering:pixelated"/>`;
     return `<g data-item="" transform="translate(${ITEM.x - half} ${ITEM.y - half}) scale(${ITEM.scale})"><foreignObject width="${ITEM.size}" height="${ITEM.size}"><div style="width:${ITEM.size}px;height:${ITEM.size}px;image-rendering:pixelated;${escapeXML(state.itemStyle)}"></div></foreignObject></g>`;
   }
@@ -144,8 +149,8 @@
     //the enemy only has a percent so no numbers are shown
     const numbers = state.side === "enemy" ? "" : `<g data-numbers="" class="ink">${hpNumbers(hp, state.maxHP)}</g>`;
     const description = `${state.name}, level ${state.level}, HP ${state.hp} of ${state.maxHP}${state.status === "none" ? "" : ", " + statusLabels[state.status]}`;
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${view.left} ${view.top} ${view.width} ${view.height}" role="img" aria-label="${escapeXML(description)}"><style>${SHADOW_CSS}${state.mega ? megaCss(Math.max(...shapeOf(state).map((point) => point[0])) - Math.min(...shapeOf(state).map((point) => point[0]))) : ""}text{font-family:ShieldRodin,sans-serif;fill:var(--phd-ink,#000)}polygon{fill:var(--phd-bg,#fff)}.ink{filter:var(--phd-ink-filter,none)}</style>` +
-      `<polygon points="${points}" fill-opacity=".902"/>` + drawName(state, at) + drawLevel(state, at) + drawStatus(state, at) + drawItem(state) + drawBar(at, clamp(hp / state.maxHP, 0, 1)) + numbers + (state.mega && state.megaStyle !== "none" ? drawMega(shapeOf(state), state.megaStyle === "wobble") : "") + "</svg>";
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${view.left} ${view.top} ${view.width} ${view.height}" role="img" aria-label="${escapeXML(description)}"><style>${SHADOW_CSS}${state.dynamax ? "text{fill:#fff!important}.ink{filter:invert(1)!important}" : ""}${state.mega ? megaCss(Math.max(...shapeOf(state).map((point) => point[0])) - Math.min(...shapeOf(state).map((point) => point[0]))) : ""}text{font-family:ShieldRodin,sans-serif;fill:var(--phd-ink,#000)}polygon{fill:var(--phd-bg,#fff)}.ink{filter:var(--phd-ink-filter,none)}</style>` +
+      (state.mega && state.megaStyle !== "none" ? drawMega(shapeOf(state), state.megaStyle === "wobble") : "") + `<polygon points="${points}" fill-opacity=".902"${state.dynamax ? ' style="fill:#d91c5e"' : ""}/>` + drawName(state, at) + drawLevel(state, at) + drawStatus(state, at) + drawItem(state) + drawBar(at, clamp(hp / state.maxHP, 0, 1)) + numbers + "</svg>";
   }
 
   //an empty class lets tests load the file outside a browser

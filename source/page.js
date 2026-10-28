@@ -1,5 +1,6 @@
 (() => {
   const cfg = JSON.parse(document.currentScript.dataset.cfg);
+  const FX_BASE = new URL("fx/", document.currentScript.src).href;
   const list = phdParseList(cfg.list);
 
   // Didn't want to screw around to figure out how to detect lunges dynamically so I opted for a list
@@ -148,6 +149,46 @@
       return r;
     });
 
+    const runMinor = B.runMinor;
+    B.runMinor = function (args) {
+      const kind = args[0];
+      let pending = null;
+      try {
+        if (kind === "-boost" || kind === "-unboost" || kind === "-setboost") {
+          const target = this.getPokemon(args[1]);
+          const stat = args[2];
+          const amount = parseInt(args[3], 10);
+          let change = kind === "-boost" ? amount : kind === "-unboost" ? -amount : amount - ((target && target.boosts && target.boosts[stat]) || 0);
+          if (this.gen === 1 && kind !== "-setboost" && stat === "spd") change = 0;
+          const type = change > 0 ? "good" : "bad";
+          const seen = target && target.__phdFx;
+          const used = seen && seen.turn === this.turn && seen[type];
+          if (target && target.sprite && change && !used) pending = { pokemon: target, type };
+        }
+      } catch (e) { console.warn("[phd]", e); }
+      const scene = this.scene;
+      scene.__phdStat = pending;
+      try {
+        return runMinor.apply(this, arguments);
+      } finally {
+        scene.__phdStat = null;
+      }
+    };
+
+    const resultAnim = S.resultAnim;
+    S.resultAnim = function (pokemon, result, type) {
+      try {
+        const pending = this.__phdStat;
+        if (pending && pending.pokemon === pokemon && pending.type === type && this.animating && this.battle.seeking === null) {
+          this.__phdStat = null;
+          const seen = pokemon.__phdFx && pokemon.__phdFx.turn === this.battle.turn ? pokemon.__phdFx : (pokemon.__phdFx = { turn: this.battle.turn });
+          seen[type] = true;
+          playStatFx(this, pokemon.sprite, type);
+        }
+      } catch (e) { console.warn("[phd]", e); }
+      return resultAnim.apply(this, arguments);
+    };
+
     const runPrepareAnim = S.runPrepareAnim;
     S.runPrepareAnim = function (moveid, attacker) {
       try {
@@ -190,10 +231,26 @@
     const rec = folder && cfg.placements[folder.name];
     return rec && rec[m[1] ? "back" : "front"] || null;
   }
+  function isAerial(sp) {
+    const m = PSHOWDOWN_SPRITE_URL.exec((sp && sp.url) || "");
+    const folder = m && phdFind(list, m[3]);
+    const rec = folder && cfg.placements[folder.name];
+    return !!(rec && rec.aerial);
+  }
+  window.__phdPlacementOf = placementOf;
+  window.__phdIsAerial = isAerial;
 
-  const SHORT_HEIGHT = 90;
-  const SHORT_LIFT = 50;
+  // Some sprites get blocked by HP bar so we move them a bit upward (only Player side as opponent's hp bar can't obscure their pokemon)
+  const SHORT_HEIGHT = 70;
+  const SHORT_LIFT = 40;
+
+  // Some mons will have a Aerial tag and this just means they get a n pixels y offset
+  const AERIAL_LIFT_ENEMY = 30;
+  const AERIAL_LIFT_PLAYER = 40;
+
+  // Doubles needs a lot of space so sprites get shrunk slightly
   const MULTI_SCALE = 0.85;
+
   const STAGE_WIDTH = 640;
   const ICON_SCALE = 2, ICON_GAP = 10, ICON_W = 40, ICON_H = 30;
   const ICON_LAYOUT = "half", ICON_COLUMNS = 3, ICON_ROW_GAP = 16, ICON_STACK = "center", STAGE_HEIGHT = 360;
@@ -339,6 +396,7 @@
   const hitboxDone = new Set();
   const hitboxWaiters = {};
   const statbarScenes = new Set();
+  window.__phdScenes = statbarScenes;
 
   function refresh() {
     statbarScenes.forEach((scene) => { relayout(scene); placeStatbars(scene); gateScene(scene); });
@@ -399,7 +457,90 @@
     const content = hitboxOf(actionUrl(sprite, ""));
     if (!content || !sprite.sp || !sprite.sp.__phdBase) return null;
     const box = sprite.scene.pos({ x: sprite.x, y: sprite.y, z: sprite.z }, sprite.sp);
-    return { left: box.left + content.x * box.width, top: box.top + content.y * box.height, width: content.w * box.width };
+    return { left: box.left + content.x * box.width, top: box.top + content.y * box.height, width: content.w * box.width, height: content.h * box.height };
+  }
+
+  const STAT_FX = { good: { url: FX_BASE + "stat-boost.apng", ratio: 640 / 768 }, bad: { url: FX_BASE + "stat-drop.apng", ratio: 640 / 768 } };
+  const STAT_SOUNDS = { good: FX_BASE + "stat-boost.wav", bad: FX_BASE + "stat-drop.wav" };
+  const soundBuffers = {};
+  let audioContext = null;
+  const contextOf = () => audioContext || (audioContext = new (window.AudioContext || window.webkitAudioContext)());
+  for (const type in STAT_SOUNDS) {
+    soundBuffers[type] = fetch(STAT_SOUNDS[type])
+      .then((response) => response.arrayBuffer())
+      .then((data) => contextOf().decodeAudioData(data))
+      .catch((e) => { console.warn("[phd] stat sound load failed", type, e); return null; });
+  }
+  async function playStatSound(type) {
+    const sound = window.BattleSound;
+    const volume = sound ? (sound.muted ? 0 : sound.effectVolume) : 50;
+    if (!volume) return;
+    const buffer = await soundBuffers[type];
+    if (!buffer) return;
+    const context = contextOf();
+    if (context.state === "suspended") await context.resume().catch(() => {});
+    const source = context.createBufferSource();
+    const gain = context.createGain();
+    gain.gain.value = Math.max(0, Math.min(1, volume / 100));
+    source.buffer = buffer;
+    source.connect(gain).connect(context.destination);
+    source.start();
+  }
+  const STAT_FX_GAP = 500;
+  const STAT_FX_SCALE = 1.5;
+  const STAT_FX_OPACITY = 0.8;
+  const STAT_SOUND_DELAY = 33; //this is just to match the offset to Pokemon Sword/Shield
+
+  for (const type in STAT_FX) { preload(STAT_FX[type].url); getDuration(STAT_FX[type].url); }
+
+  const pointOf = (text) => (text || "").split(",").map(Number);
+  function fxFrame(scene, sprite) {
+    const place = sprite.sp && placementOf(sprite.sp);
+    const top = place && place["tallest-point"] && pointOf(place["tallest-point"]);
+    if (top && top.every(Number.isFinite) && sprite.sp.__phdBase) {
+      const box = scene.pos({ x: sprite.x, y: sprite.y, z: sprite.z }, sprite.sp);
+      const centre = place.center && pointOf(place.center);
+      const bottom = box.top + box.height;
+      const height = bottom - (box.top + (top[1] - place.y) / place.h * box.height);
+      const middle = centre && Number.isFinite(centre[0]) ? centre[0] : top[0];
+      if (height > 0) return { height, bottom, cx: box.left + (middle - place.x) / place.w * box.width };
+    }
+    const hit = spriteHitbox(sprite);
+    const el = sprite.$el;
+    const rect = hit || (el && { left: parseFloat(el.css("left")) || 0, top: parseFloat(el.css("top")) || 0, width: el.width(), height: el.height() });
+    if (!rect) return null;
+    const height = rect.height * STAT_FX_SCALE;
+    return { height, bottom: rect.top + rect.height / 2 + height / 2, cx: rect.left + rect.width / 2 };
+  }
+
+  function playStatFx(scene, sprite, type) {
+    const fx = STAT_FX[type];
+    if (!fx || !sprite || !sprite.$el) return;
+    const ms = durations[fx.url] || 2000;
+    const $img = $("<img>").css({ display: "none", position: "absolute", pointerEvents: "none", opacity: STAT_FX_OPACITY });
+    scene.$fx.append($img);
+    $img.delay(scene.timeOffset).queue(function (next) {
+      const frame = scene.animating && scene.battle.seeking === null && fxFrame(scene, sprite);
+      if (!frame || !(frame.height > 0)) {
+        $img.detach();
+        $img.clearQueue();
+        return next();
+      }
+      const height = frame.height, width = height * fx.ratio;
+      $img.attr("src", `${fx.url}#${Date.now()}`).css({
+        display: "block",
+        left: Math.round(frame.cx - width / 2),
+        top: Math.round(frame.bottom - height),
+        width: Math.round(width),
+        height: Math.round(height)
+      });
+      setTimeout(() => playStatSound(type), STAT_SOUND_DELAY);
+      next();
+    }).delay(ms).queue(function (next) {
+      $img.detach();
+      next();
+    }).delay(STAT_FX_GAP);
+    scene.waitFor($img);
   }
 
   function placeStatbars(scene) {
@@ -486,6 +627,7 @@
         }
         const content = obj.__phdFront === false ? hitboxes[actionUrl({ sp: obj }, "")] : null;
         if (content && content.h * height < SHORT_HEIGHT) cy -= SHORT_LIFT;
+        if (isAerial(obj)) cy -= obj.__phdFront === false ? AERIAL_LIFT_PLAYER : AERIAL_LIFT_ENEMY;
         return Object.assign({}, css, { left: Math.round(cx - width / 2), top: Math.round(cy - height / 2), width: Math.round(width), height: Math.round(height) });
       } catch (e) { console.warn("[phd]", e); return css; }
     };

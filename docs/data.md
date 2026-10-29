@@ -49,7 +49,7 @@ These get pre-gennerated by @NathanMichael
       "x": 359.0,"y": 45.5, //sprite 
 
       /*
-      The renders are mostly* twice as large then shown in showdown, this will be changed in the future as its unecessary most of them is render/2
+        The renders are mostly* (not always) twice as large then shown in showdown, this is done for mostly resolution reasons 
       */
       
       "w": 141.5, "h": 160.5,//sprite width and height for showdown (mostly redundent)

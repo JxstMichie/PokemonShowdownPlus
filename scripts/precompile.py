@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -92,11 +93,13 @@ def main():
     placements = {}
     for gen, d, name in folders:
         if (d / "data.json").exists():
-            data = json.loads((d / "data.json").read_text(encoding="utf-8"))
+            raw = (d / "data.json").read_bytes()
+            data = json.loads(raw.decode("utf-8"))
             boxes = {v: {**{k: round(data[v][k], 1) for k in "xywh"}, **{k: data[v][k] for k in ("center", "tallest-point") if k in data[v]}} for v in ("front", "back") if v in data}
             if boxes:
                 if data.get("aerial", previous.get(name, {}).get("aerial", False)):
                     boxes["aerial"] = True
+                boxes["hash"] = hashlib.sha256(raw.replace(b"\r", b"")).hexdigest()[:8]
                 placements[name] = boxes
     metadata_path.write_text(json.dumps(placements, separators=(",", ":")), encoding="utf-8")
     print(f"Precompiled {len(known)} local names and {len(placements)} placements", flush=True)

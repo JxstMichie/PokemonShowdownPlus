@@ -3,17 +3,16 @@
 
   //currentScript only works while the script first runs so it is read right away
   const script = global.document && global.document.currentScript;
-  const D = global.PokemonHPData || JSON.parse(script.dataset.cfg).ui;
+  let cfg = {};
+  try {
+    cfg = JSON.parse(script.dataset.cfg);
+  } catch (error) {}
+  const D = global.PokemonHPData || cfg.ui;
   const { view, shapes, layout, colors, bar, sheet, draw, statusLabels, fonts } = D;
   const NAME = D.name;
   const STYLES = ["wobble", "minimal", "none"];
   const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
-  let megaStyle = "wobble", pauseColors = false;
-  try {
-    const cfg = JSON.parse(script.dataset.cfg);
-    megaStyle = cfg.megaStyle || megaStyle;
-    pauseColors = !!cfg.pauseColors;
-  } catch (error) {}
+  let megaStyle = cfg.megaStyle || "wobble", pauseColors = !!cfg.pauseColors;
   const ASSETS = script ? new URL("assets/", script.src).href : "assets/";
   const SHEET_URL = ASSETS + "battle-sprites.png";
 

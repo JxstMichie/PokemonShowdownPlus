@@ -46,11 +46,17 @@
     send("phd-duration", { url, ms: durations[url] });
   });
 
+  const configs = {
+    "ui/component.js": { ui, megaStyle: settings && settings.megaStyle, pauseColors: settings && settings.pauseColors },
+    "page.js": { size: 192, list, placements, doubles: layout && layout.doubles, hpBars: layout && layout.hpBars, lunge: moves && moves.lunge || [] },
+    "debug.js": { showApngData: settings && settings.showApngData }
+  };
+
   for (const file of ["config.js", "ui/component.js", "page.js", "ui/panels.js", "debug.js"]) {
     const script = document.createElement("script");
     script.src = runtime.getURL(file);
     script.async = false;
-    script.dataset.cfg = JSON.stringify({ size: 192, list, placements, doubles: layout && layout.doubles, hpBars: layout && layout.hpBars, lunge: moves && moves.lunge || [], ui, megaStyle: settings && settings.megaStyle, pauseColors: settings && settings.pauseColors, showApngData: settings && settings.showApngData });
+    if (configs[file]) script.dataset.cfg = JSON.stringify(configs[file]);
     (document.head || document.documentElement).appendChild(script);
     script.onload = () => script.remove();
   }

@@ -86,6 +86,10 @@
     const shape = shapeOf(panel.state);
     const stageWidth = box.parentElement.clientWidth || 640;
     const row = panel.offsetParent;
+    if (!row) {
+      box.style.display = "none";
+      return;
+    }
     const left = Math.max(2, Math.min(stageWidth - boxWidth - 2, row.offsetLeft + panel.offsetLeft + toX(topMiddle(shape)) - boxWidth / 2));
     box.style.left = Math.round(left) + "px";
     box.style.top = Math.round(row.offsetTop + panel.offsetTop + toY(shape[2][1]) + P.chipsGap) + "px";

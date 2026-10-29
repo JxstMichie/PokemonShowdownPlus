@@ -87,16 +87,18 @@ def main():
     folders = [(g.name, d, re.sub(r"^\d{4}_", "", d.name))
                for g in sorted(ANI.glob("gen[1-9]"))
                for d in sorted(g.glob("[0-9][0-9][0-9][0-9]_*")) if d.is_dir()]
+    metadata_path = DATA / "render_metadata.json"
+    previous = json.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.exists() else {}
     placements = {}
     for gen, d, name in folders:
         if (d / "data.json").exists():
             data = json.loads((d / "data.json").read_text(encoding="utf-8"))
             boxes = {v: {**{k: round(data[v][k], 1) for k in "xywh"}, **{k: data[v][k] for k in ("center", "tallest-point") if k in data[v]}} for v in ("front", "back") if v in data}
             if boxes:
-                if data.get("aerial"):
+                if data.get("aerial", previous.get(name, {}).get("aerial", False)):
                     boxes["aerial"] = True
                 placements[name] = boxes
-    (DATA / "placements.json").write_text(json.dumps(placements, separators=(",", ":")), encoding="utf-8")
+    metadata_path.write_text(json.dumps(placements, separators=(",", ":")), encoding="utf-8")
     print(f"Precompiled {len(known)} local names and {len(placements)} placements", flush=True)
 
 

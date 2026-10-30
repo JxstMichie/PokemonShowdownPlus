@@ -161,6 +161,49 @@
     updateTeams(scene);
   }
 
+  const ABILITY_HOLD = 1800;
+  const ABILITY_EXIT = 467;
+  const TEAM_SLIDE = 300;
+
+  function slideTeamBar(scene, edge, show) {
+    const column = scene.__phdTeams && scene.__phdTeams[edge === "right" ? "enemy" : "player"];
+    if (!column) return;
+    column.__phdAway = Math.max(0, (column.__phdAway || 0) + (show ? -1 : 1));
+    column.classList.toggle("away", column.__phdAway > 0);
+  }
+
+  function abilityEdge(pokemon) {
+    const side = pokemon.side, battle = side.battle;
+    const count = side.active.length;
+    const visual = side === battle.nearSide ? pokemon.slot : count - 1 - pokemon.slot;
+    return count > 1 && visual === count - 1 ? "right" : "left";
+  }
+
+  function installAbility() {
+    if (!window.BattleScene || BattleScene.prototype.__phdAbility || !customElements.get("pokemon-ability-panel")) return;
+    BattleScene.prototype.__phdAbility = true;
+    const original = BattleScene.prototype.abilityActivateAnim;
+    BattleScene.prototype.abilityActivateAnim = function (pokemon, result) {
+      if (!this.animating) return;
+      const layer = layerOf(this);
+      if (!layer || !pokemon.sprite) return original.apply(this, arguments);
+      const scene = this, edge = abilityEdge(pokemon);
+      const panel = owned(this, "__phdAbility", () => make("pokemon-ability-panel", "", layer));
+      const $timer = $("<div>").delay(this.timeOffset)
+        .queue((next) => { slideTeamBar(scene, edge, false); if (window.__phdPlaySound) window.__phdPlaySound("ability"); next(); })
+        .delay(TEAM_SLIDE)
+        .queue((next) => { panel.show({ side: edge, name: pokemon.name, ability: result }); next(); })
+        .delay(ABILITY_HOLD)
+        .queue((next) => { panel.hide(edge); next(); })
+        .delay(ABILITY_EXIT)
+        .queue((next) => { slideTeamBar(scene, edge, true); next(); })
+        .delay(TEAM_SLIDE);
+      this.wait(100);
+      pokemon.sprite.updateStatbar(pokemon);
+      if (this.acceleration < 3) this.waitFor($timer);
+    };
+  }
+
   function itemStyleOf(sprite, mon) {
     let item = mon.item;
     if (!sprite.isFrontSprite) {
@@ -230,6 +273,7 @@
       }
       return result;
     };
+    installAbility();
     return true;
   }
 

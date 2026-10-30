@@ -20,9 +20,11 @@
 .innerbattle.phd-on .phd-chips .status { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--gap); min-height: 0; padding: 0; }
 .innerbattle.phd-on .phd-chips .status span { box-sizing: border-box; width: var(--chip); height: calc(var(--row) - 1px); line-height: calc(var(--row) - 3px); text-align: center; white-space: nowrap; overflow: hidden; }
 
-.phd-team { position: absolute; top: 62px; width: 46px; height: 210px; display: flex; flex-direction: column; padding: 5px 0; box-sizing: border-box; }
+.phd-team { transition: transform .3s ease; position: absolute; top: 62px; width: 46px; height: 210px; display: flex; flex-direction: column; padding: 5px 0; box-sizing: border-box; }
 .phd-team.player { left: 4px; }
 .phd-team.enemy { right: 4px; }
+.phd-team.player.away { transform: translateX(-70px); }
+.phd-team.enemy.away { transform: translateX(70px); }
 
 .phd-team::before { content: ""; position: absolute; left: 50%; top: 50%; width: 210px; height: 46px; background: url(assets/pill.png) center / 100% 100%; transform: translate(-50%, -50%) rotate(90deg); opacity: .96; }
 

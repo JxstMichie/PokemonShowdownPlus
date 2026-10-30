@@ -56,7 +56,8 @@ These get pre-gennerated by @NathanMichael
       
       "center": "433.97,147.93", //Center of torso 
       "origin": "434.09,198.16", //Point the Pokemon stands on, used to place it on the battlefield
-      "tallest-point": "432.25,118.00" //Height of Pokemon
+      "tallest-point": "432.25,118.00", //Height of Pokemon
+      "hit": [0.3671, 0.3655, 0.285, 0.605] //x, y to x,y hitbox for the sprite (used to scale and place their tooltip on only the visible sprite)
     },
     "back": { //exact same but for back-ani
       ...

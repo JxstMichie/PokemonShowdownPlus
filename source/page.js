@@ -425,7 +425,12 @@
     return new Promise((resolve) => {
       const waiting = patchWaiters[name] || (patchWaiters[name] = []);
       waiting.push(resolve);
-      setTimeout(() => resolve(false), PATCH_TIMEOUT);
+      setTimeout(() => {
+        const index = waiting.indexOf(resolve);
+        if (index >= 0) waiting.splice(index, 1);
+        if (!waiting.length && patchWaiters[name] === waiting) delete patchWaiters[name];
+        resolve(false);
+      }, PATCH_TIMEOUT);
       if (waiting.length > 1) return;
       document.dispatchEvent(new CustomEvent("phd-stale", { detail: JSON.stringify({ name, dir, tag }) }));
     });
@@ -471,6 +476,37 @@
     }
   }
 
+  const SPRITE_FILE = /\/PokemonHD_Gen\d\/main\/\d{4}_([^/]+)\/(?:tap_|physical_)?[^/]+?(-back)?(?:-shiny)?\.png$/;
+
+  function precompiledHitbox(url) {
+    const match = SPRITE_FILE.exec(url);
+    const entry = match && cfg.placements[match[1]];
+    const view = entry && entry[match[2] ? "back" : "front"];
+    const box = view && view.hitbox;
+    if (!box || !(view.w > 0) || !(view.h > 0)) return null;
+    return { x: (box[0] - view.x) / view.w, y: (box[1] - view.y) / view.h, w: (box[2] - box[0]) / view.w, h: (box[3] - box[1]) / view.h };
+  }
+
+  function scanHitbox(bitmap) {
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    context.drawImage(bitmap, 0, 0);
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+    let minX = canvas.width, minY = canvas.height, maxX = -1, maxY = -1;
+    for (let y = 0; y < canvas.height; y++) {
+      for (let x = 0; x < canvas.width; x++) {
+        if (data[(y * canvas.width + x) * 4 + 3] <= 16) continue;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+    return maxX >= 0 ? { x: minX / canvas.width, y: minY / canvas.height, w: (maxX + 1 - minX) / canvas.width, h: (maxY + 1 - minY) / canvas.height } : null;
+  }
+
   function hitboxOf(url) {
     if (!url) return null;
     if (url in hitboxes) return hitboxes[url];
@@ -482,30 +518,23 @@
       waiting.forEach((run) => { try { run(); } catch (e) { console.warn("[phd]", e); } });
       refresh();
     };
+    const precompiled = precompiledHitbox(url);
     fetch(url).then((response) => response.blob()).then(async (blob) => {
       try { await checkSpriteHash(url, blob); } catch (e) { console.warn("[phd]", e); }
+      if (precompiled && precompiledHitbox(url)) return null;
       return createImageBitmap(blob);
     }).then((bitmap) => {
-      const canvas = document.createElement("canvas");
-      canvas.width = bitmap.width;
-      canvas.height = bitmap.height;
-      const context = canvas.getContext("2d", { willReadFrequently: true });
-      context.drawImage(bitmap, 0, 0);
-      const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
-      let minX = canvas.width, minY = canvas.height, maxX = -1, maxY = -1;
-      for (let y = 0; y < canvas.height; y++) {
-        for (let x = 0; x < canvas.width; x++) {
-          if (data[(y * canvas.width + x) * 4 + 3] <= 16) continue;
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-        }
-      }
+      if (!bitmap) return;
+      const box = scanHitbox(bitmap);
       bitmap.close();
-      if (maxX >= 0) hitboxes[url] = { x: minX / canvas.width, y: minY / canvas.height, w: (maxX + 1 - minX) / canvas.width, h: (maxY + 1 - minY) / canvas.height };
+      if (box) hitboxes[url] = box;
+      if (precompiled) refresh(); else finish();
+    }).catch(precompiled ? () => {} : finish);
+    if (precompiled) {
+      hitboxes[url] = precompiled;
       finish();
-    }).catch(finish);
+      return precompiled;
+    }
     return null;
   }
 
@@ -517,7 +546,7 @@
   }
 
   const STAT_FX = { good: { url: FX_BASE + "stat-boost.apng", ratio: 640 / 768 }, bad: { url: FX_BASE + "stat-drop.apng", ratio: 640 / 768 } };
-  const STAT_SOUNDS = { good: FX_BASE + "stat-boost.wav", bad: FX_BASE + "stat-drop.wav" };
+  const STAT_SOUNDS = { good: FX_BASE + "stat-boost.wav", bad: FX_BASE + "stat-drop.wav", ability: FX_BASE + "ability-activate.wav" };
   const soundBuffers = {};
   let audioContext = null;
   const contextOf = () => audioContext || (audioContext = new (window.AudioContext || window.webkitAudioContext)());
@@ -542,31 +571,24 @@
     source.connect(gain).connect(context.destination);
     source.start();
   }
+  window.__phdPlaySound = playStatSound;
   const STAT_FX_GAP = 500;
-  const STAT_FX_SCALE = 1.5;
-  const STAT_FX_OPACITY = 0.8;
+  const STAT_FX_OPACITY = 1;
+  const STAT_FX_SCALE = 2;
   const STAT_SOUND_DELAY = 33; //this is just to match the offset to Pokemon Sword/Shield
 
   for (const type in STAT_FX) { preload(STAT_FX[type].url); getDuration(STAT_FX[type].url); }
 
   const pointOf = (text) => (text || "").split(",").map(Number);
   function fxFrame(scene, sprite) {
-    const place = sprite.sp && placementOf(sprite.sp);
-    const top = place && place["tallest-point"] && pointOf(place["tallest-point"]);
-    if (top && top.every(Number.isFinite) && sprite.sp.__phdBase) {
-      const box = scene.pos({ x: sprite.x, y: sprite.y, z: sprite.z }, sprite.sp);
-      const centre = place.center && pointOf(place.center);
-      const bottom = box.top + box.height;
-      const height = bottom - (box.top + (top[1] - place.y) / place.h * box.height);
-      const middle = centre && Number.isFinite(centre[0]) ? centre[0] : top[0];
-      if (height > 0) return { height, bottom, cx: box.left + (middle - place.x) / place.w * box.width };
+    const hit = drawnHitbox(sprite) || spriteHitbox(sprite);
+    if (hit && hit.width > 0 && hit.height > 0) {
+      const width = hit.width * STAT_FX_SCALE, height = hit.height * STAT_FX_SCALE;
+      return { left: hit.left + hit.width / 2 - width / 2, top: hit.top + hit.height / 2 - height / 2, width, height };
     }
-    const hit = spriteHitbox(sprite);
     const el = sprite.$el;
-    const rect = hit || (el && { left: parseFloat(el.css("left")) || 0, top: parseFloat(el.css("top")) || 0, width: el.width(), height: el.height() });
-    if (!rect) return null;
-    const height = rect.height * STAT_FX_SCALE;
-    return { height, bottom: rect.top + rect.height / 2 + height / 2, cx: rect.left + rect.width / 2 };
+    const rect = el && { left: parseFloat(el.css("left")) || 0, top: parseFloat(el.css("top")) || 0, width: el.width(), height: el.height() };
+    return rect && rect.width > 0 && rect.height > 0 ? rect : null;
   }
 
   function playStatFx(scene, sprite, type) {
@@ -577,18 +599,17 @@
     scene.$fx.append($img);
     $img.delay(scene.timeOffset).queue(function (next) {
       const frame = scene.animating && scene.battle.seeking === null && fxFrame(scene, sprite);
-      if (!frame || !(frame.height > 0)) {
+      if (!frame) {
         $img.detach();
         $img.clearQueue();
         return next();
       }
-      const height = frame.height, width = height * fx.ratio;
       $img.attr("src", `${fx.url}#${Date.now()}`).css({
         display: "block",
-        left: Math.round(frame.cx - width / 2),
-        top: Math.round(frame.bottom - height),
-        width: Math.round(width),
-        height: Math.round(height)
+        left: Math.round(frame.left),
+        top: Math.round(frame.top),
+        width: Math.round(frame.width),
+        height: Math.round(frame.height)
       });
       setTimeout(() => playStatSound(type), STAT_SOUND_DELAY);
       next();
@@ -652,9 +673,52 @@
       }
     }
   }
+  function drawnHitbox(sprite) {
+    const el = sprite.$el && sprite.$el[0];
+    const content = hitboxOf(actionUrl(sprite, ""));
+    if (!el || !content || !el.isConnected || el.style.display === "none") return null;
+    const left = parseFloat(el.style.left), top = parseFloat(el.style.top), width = parseFloat(el.style.width), height = parseFloat(el.style.height);
+    if (![left, top, width, height].every(Number.isFinite) || !width || !height) return null;
+    return { left: left + content.x * width, top: top + content.y * height, width: content.w * width, height: content.h * height };
+  }
+
+  function placeTooltips(scene) {
+    const battle = scene.battle;
+    if (!battle || !scene.$tooltips || !scene.$tooltips[0].isConnected) return;
+    for (const side of [battle.nearSide, battle.farSide]) {
+      const prefix = side === battle.nearSide ? "p1" : "p2";
+      ((side && side.active) || []).forEach((pokemon, index) => {
+        const sprite = pokemon && pokemon.sprite;
+        if (!sprite || !sprite.sp || !placementOf(sprite.sp)) return;
+        const box = drawnHitbox(sprite);
+        const tip = box && scene.$tooltips.children(`[data-id="${prefix}${"abc"[index]}"]`)[0];
+        if (!tip) return;
+        const next = [box.left, box.top, box.width, box.height].map(Math.round);
+        const key = next.join();
+        if (tip.__phdKey === key) return;
+        tip.__phdKey = key;
+        Object.assign(tip.style, { left: next[0] + "px", top: next[1] + "px", width: next[2] + "px", height: next[3] + "px", zIndex: String(next[1] + next[3]) });
+      });
+    }
+  }
+  const tooltipLoop = () => {
+    statbarScenes.forEach((scene) => { try { placeTooltips(scene); } catch (e) { console.warn("[phd]", e); } });
+    requestAnimationFrame(tooltipLoop);
+  };
+  requestAnimationFrame(tooltipLoop);
+  window.__phdHitboxOf = (sprite) => hitboxOf(actionUrl(sprite, ""));
+
   function patchPlacement() {
     if (!window.BattleScene || BattleScene.prototype.__phdPlaced) return;
     BattleScene.prototype.__phdPlaced = true;
+    const rebuildTooltips = BattleScene.prototype.rebuildTooltips;
+    if (rebuildTooltips) {
+      BattleScene.prototype.rebuildTooltips = function () {
+        const r = rebuildTooltips.apply(this, arguments);
+        try { placeTooltips(this); } catch (e) { console.warn("[phd]", e); }
+        return r;
+      };
+    }
     const pos = BattleScene.prototype.pos;
     originalPos = pos;
     BattleScene.prototype.pos = function (loc, obj) {

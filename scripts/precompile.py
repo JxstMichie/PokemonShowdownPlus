@@ -94,7 +94,7 @@ def main():
         if (d / "data.json").exists():
             raw = (d / "data.json").read_bytes()
             data = json.loads(raw.decode("utf-8"))
-            boxes = {v: {**{k: round(data[v][k], 1) for k in "xywh"}, **{k: data[v][k] for k in ("center", "origin", "tallest-point") if k in data[v]}} for v in ("front", "back") if v in data}
+            boxes = {v: {**{k: round(data[v][k], 1) for k in "xywh"}, **{k: data[v][k] for k in ("center", "origin", "tallest-point", "hitbox") if k in data[v]}} for v in ("front", "back") if v in data}
             if boxes:
                 boxes["hash"] = hashlib.sha256(raw.replace(b"\r", b"")).hexdigest()[:8]
                 placements[name] = boxes

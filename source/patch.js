@@ -24,6 +24,8 @@ function phdPlacementFromData(data, tag) {
     for (const key of ["center", "origin", "tallest-point"]) {
       if (typeof source[key] === "string") box[key] = source[key];
     }
+    const hitbox = source.hitbox;
+    if (Array.isArray(hitbox) && hitbox.length === 4 && hitbox.every(Number.isFinite)) box.hitbox = hitbox;
     entry[view] = box;
   }
   if (!entry.front && !entry.back) return null;

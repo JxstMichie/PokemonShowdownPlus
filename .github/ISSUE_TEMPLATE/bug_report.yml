@@ -1,0 +1,63 @@
+name: Bug report
+description: Report a problem with Pokémon Showdown Plus.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem! Please share a replay so we can investigate.
+        Fields marked with an asterisk (*) are required.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Description / Notes
+      placeholder: Describe the problem
+    validations:
+      required: false
+
+  - type: textarea
+    id: replay
+    attributes:
+      label: Replay link (Prefered) or HTML file (for in-case it's self hosted)
+      description: |
+        Paste a Pokémon Showdown replay link, or drag and drop your downloaded replay HTML file into this box.
+        You can also use the attachment button below the box. If GitHub rejects the HTML file, upload it in a ZIP file instead.
+      placeholder: Paste your replay link here, or attach your replay HTML file.
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Drag and drop or paste a screenshot here to help illustrate the problem.
+    validations:
+      required: false
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      description: Include your browser name and version, if available.
+      placeholder: Firefox, Firefox Developer Edition, or Zen
+    validations:
+      required: false
+
+  - type: textarea
+    id: specs-network
+    attributes:
+      label: Device specs and network speed
+      description: internet upload/download speeds and include OS (Ubuntu/Windows/Mac etc..)
+      placeholder: "Linux upload: 33 Mbps; download: 22 Mbps"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: latest-version
+    attributes:
+      label: Extension version
+      options:
+        - label: I am using the latest version available on the Firefox Add-ons store OR latest from Github Releases.
+          required: true

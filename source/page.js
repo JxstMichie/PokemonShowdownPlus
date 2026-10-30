@@ -231,22 +231,18 @@
     const rec = folder && cfg.placements[folder.name];
     return rec && rec[m[1] ? "back" : "front"] || null;
   }
-  function isAerial(sp) {
+  function hashOf(sp) {
     const m = PSHOWDOWN_SPRITE_URL.exec((sp && sp.url) || "");
     const folder = m && phdFind(list, m[3]);
     const rec = folder && cfg.placements[folder.name];
-    return !!(rec && rec.aerial);
+    return (rec && rec.hash) || "";
   }
+  window.__phdHashOf = hashOf;
   window.__phdPlacementOf = placementOf;
-  window.__phdIsAerial = isAerial;
 
   // Some sprites get blocked by HP bar so we move them a bit upward (only Player side as opponent's hp bar can't obscure their pokemon)
   const SHORT_HEIGHT = 70;
   const SHORT_LIFT = 40;
-
-  // Some mons will have a Aerial tag and this just means they get a n pixels y offset
-  const AERIAL_LIFT_ENEMY = 30;
-  const AERIAL_LIFT_PLAYER = 40;
 
   // Doubles needs a lot of space so sprites get shrunk slightly
   const MULTI_SCALE = 0.85;
@@ -346,23 +342,22 @@
     }
     return null;
   }
-  function anchored(anchor, place, sp) {
+  function anchored(anchor, place) {
     const w = place.w * anchor.scale, h = place.h * anchor.scale;
-
-    //anchor.bottom offset so images with alot of empty bottom space dont levitate like chien-pao
-    const content = hitboxOf(actionUrl({ sp }, ""));
-    if (!content) return { cx: anchor.cx, bottom: anchor.bottom, w, h, fixed: true };
-    if (!Number.isFinite(anchor.left) || !Number.isFinite(anchor.feet)) {
-      return { cx: anchor.cx, bottom: anchor.bottom + (1 - content.y - content.h) * h, w, h, fixed: true };
-    }
-    return { cx: anchor.left - content.x * w + w / 2, bottom: anchor.feet - (content.y + content.h) * h + h, w, h, fixed: true };
+    const origin = place.origin && pointOf(place.origin);
+    if (!origin || !Number.isFinite(origin[0]) || !Number.isFinite(origin[1])) return { cx: anchor.cx, bottom: anchor.bottom, w, h, fixed: true };
+    return {
+      cx: anchor.cx + (place.x + place.w / 2 - origin[0]) * anchor.scale,
+      bottom: anchor.bottom + (place.y + place.h - origin[1]) * anchor.scale,
+      w, h, fixed: true,
+    };
   }
   function fixedSlot(scene, sp, place) {
     const fixed = cfg.doubles;
     if (!fixed || !(scene.activeCount > 1) || sp.__phdSlot === undefined) return null;
     const anchor = fixed[`${sp.__phdFront ? "opponent" : "player"}${sp.__phdSlot ? "2" : ""}`];
     if (!anchor) return null;
-    return anchored(anchor, place, sp);
+    return anchored(anchor, place);
   }
   function fixedRow(row, front) {
     const fixed = cfg.doubles;
@@ -371,7 +366,7 @@
     for (const { sp, place, slot } of row) {
       const anchor = fixed[`${front ? "opponent" : "player"}${slot ? "2" : ""}`];
       if (!anchor) return null;
-      out.set(sp, anchored(anchor, place, sp));
+      out.set(sp, anchored(anchor, place));
     }
     return out;
   }
@@ -392,6 +387,64 @@
   }
   const STATBAR_HEIGHT = 42;
   const STATBAR_HALF_WIDTH = 80;
+  const SPRITE_FOLDER = /\/PokemonHD_Gen(\d)\/main\/(\d{4}_[^/]+)\//;
+  const PATCH_TIMEOUT = 2000;
+  const ISSUES_URL = "https://github.com/JxstMichie/PokemonShowdownPlus/issues";
+  const patchWaiters = {};
+  document.addEventListener("phd-patch", (event) => {
+    const { name, entry } = JSON.parse(event.detail);
+    if (entry) {
+      cfg.placements[name] = entry;
+      console.info(`[phd] patched ${name} from data.json ${entry.hash}`);
+    }
+    const waiting = patchWaiters[name] || [];
+    delete patchWaiters[name];
+    waiting.forEach((resolve) => resolve(Boolean(entry)));
+    if (entry) refresh();
+  });
+
+  async function readHashTag(blob) {
+    const view = new DataView(await blob.slice(0, 1024).arrayBuffer());
+    let offset = 8;
+    while (offset + 12 <= view.byteLength) {
+      const length = view.getUint32(offset);
+      const type = String.fromCharCode(view.getUint8(offset + 4), view.getUint8(offset + 5), view.getUint8(offset + 6), view.getUint8(offset + 7));
+      if (type === "IDAT" || type === "IEND") return null;
+      if (type === "tEXt" && offset + 12 + length <= view.byteLength) {
+        let text = "";
+        for (let i = 0; i < length; i++) text += String.fromCharCode(view.getUint8(offset + 8 + i));
+        const split = text.indexOf("\0");
+        if (text.slice(0, split) === "HDh") return text.slice(split + 1);
+      }
+      offset += 12 + length;
+    }
+    return null;
+  }
+
+  function requestPlacementPatch(name, dir, tag) {
+    return new Promise((resolve) => {
+      const waiting = patchWaiters[name] || (patchWaiters[name] = []);
+      waiting.push(resolve);
+      setTimeout(() => resolve(false), PATCH_TIMEOUT);
+      if (waiting.length > 1) return;
+      document.dispatchEvent(new CustomEvent("phd-stale", { detail: JSON.stringify({ name, dir, tag }) }));
+    });
+  }
+
+  async function checkSpriteHash(url, blob) {
+    const match = SPRITE_FOLDER.exec(url);
+    const name = match && match[2].slice(5);
+    const entry = name && cfg.placements[name];
+    if (!entry) return;
+    const tag = await readHashTag(blob);
+    if (!tag) {
+      console.warn(`[phd] uh oh ${url.split("/").pop().replace(/\.png$/, "")} had no hash, please open a issue in github: ${ISSUES_URL}`);
+      return;
+    }
+    if (tag === (entry.hash || "")) return;
+    await requestPlacementPatch(name, `${match[1]}/${match[2]}`, tag);
+  }
+
   const hitboxes = {};
   const hitboxDone = new Set();
   const hitboxWaiters = {};
@@ -429,7 +482,10 @@
       waiting.forEach((run) => { try { run(); } catch (e) { console.warn("[phd]", e); } });
       refresh();
     };
-    fetch(url).then((response) => response.blob()).then((blob) => createImageBitmap(blob)).then((bitmap) => {
+    fetch(url).then((response) => response.blob()).then(async (blob) => {
+      try { await checkSpriteHash(url, blob); } catch (e) { console.warn("[phd]", e); }
+      return createImageBitmap(blob);
+    }).then((bitmap) => {
       const canvas = document.createElement("canvas");
       canvas.width = bitmap.width;
       canvas.height = bitmap.height;
@@ -627,7 +683,6 @@
         }
         const content = obj.__phdFront === false ? hitboxes[actionUrl({ sp: obj }, "")] : null;
         if (content && content.h * height < SHORT_HEIGHT) cy -= SHORT_LIFT;
-        if (isAerial(obj)) cy -= obj.__phdFront === false ? AERIAL_LIFT_PLAYER : AERIAL_LIFT_ENEMY;
         return Object.assign({}, css, { left: Math.round(cx - width / 2), top: Math.round(cy - height / 2), width: Math.round(width), height: Math.round(height) });
       } catch (e) { console.warn("[phd]", e); return css; }
     };

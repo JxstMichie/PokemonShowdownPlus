@@ -51,3 +51,36 @@ function phdSpriteUrl(list, name, kind, suffix) {
 }
 
 const phdRedirectUrl = (list, set, species) => (set in PHD_SETS ? phdSpriteUrl(list, species, "", PHD_SETS[set]) : null);
+
+const PHD_OVERWRITE = "meta-data.overwrite.json";
+const PHD_FRAGMENT = "phdMeta:";
+
+function phdApplyOverwrites(placements, stored) {
+  const tags = {};
+  for (const name of Object.keys(placements)) tags[name] = placements[name].hash || "";
+  const current = stored[PHD_OVERWRITE] || {};
+  const found = { ...current };
+  const removals = [];
+  const legacy = stored.phdPatches || {};
+  for (const name of Object.keys(legacy)) {
+    const patch = legacy[name];
+    if (!(name in found) && patch && patch.entry) found[name] = { ...patch.entry, base: patch.base };
+  }
+  for (const key of Object.keys(stored)) {
+    if (!key.startsWith(PHD_FRAGMENT)) continue;
+    removals.push(key);
+    const name = key.slice(PHD_FRAGMENT.length);
+    if (!(name in found) && stored[key] && stored[key].base !== undefined) found[name] = stored[key];
+  }
+  if (stored.phdPatches) removals.push("phdPatches");
+  const overwrite = {};
+  for (const name of Object.keys(found)) {
+    const entry = found[name];
+    if (name in tags && entry && entry.base === tags[name]) {
+      overwrite[name] = entry;
+      placements[name] = entry;
+    }
+  }
+  const changed = Object.keys(overwrite).sort().join() !== Object.keys(current).sort().join();
+  return { tags, overwrite, changed, removals };
+}

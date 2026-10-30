@@ -1,8 +1,45 @@
 const listReady = phdLoadList();
 
+const PATCH_RETRY_MS = 2000;
+const patchTasks = new Map();
+let patchSaving = Promise.resolve();
+
+const isStaleMessage = (message) =>
+  message && message.type === "phd-stale" &&
+  /^[a-z0-9-]+$/.test(message.name) && /^[1-9]\/\d{4}_[a-z0-9-]+$/.test(message.dir) &&
+  /^[0-9a-f]{8}$/.test(message.tag) && /^[0-9a-f]{0,8}$/.test(message.base);
+
+function storeOverwrite(name, base, entry) {
+  patchSaving = patchSaving.catch(() => {}).then(async () => {
+    const stored = await browser.storage.local.get(PHD_OVERWRITE);
+    const overwrite = stored[PHD_OVERWRITE] || {};
+    overwrite[name] = { ...entry, base };
+    await browser.storage.local.set({ [PHD_OVERWRITE]: overwrite });
+  });
+  return patchSaving;
+}
+
+function fetchAndStorePatch(message) {
+  const key = `${message.name}:${message.tag}`;
+  if (!patchTasks.has(key)) {
+    const task = phdFetchPlacement(message.dir, message.tag)
+      .then(async (entry) => {
+        if (entry) await storeOverwrite(message.name, message.base, entry).catch(() => {});
+        return entry;
+      })
+      .catch(() => null);
+    patchTasks.set(key, task);
+    task.then((entry) => { if (!entry) setTimeout(() => patchTasks.delete(key), PATCH_RETRY_MS); });
+  }
+  return patchTasks.get(key);
+}
+
+browser.runtime.onMessage.addListener((message) => (isStaleMessage(message) ? fetchAndStorePatch(message) : undefined));
+
 const BASE_HOSTS = ["pokemonshowdown.com", "psim.us"];
 let rules;
 let registered = null;
+let applying = Promise.resolve();
 
 function configure(extra) {
   const alternation = [...BASE_HOSTS, ...extra].map((host) => host.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
@@ -37,7 +74,14 @@ async function onRequest(details) {
   return url ? { redirectUrl: url } : {};
 }
 
-async function apply() {
+function apply() {
+  applying = applying.then(applyDomains, applyDomains);
+  return applying;
+}
+
+const coveredByManifest = (domain) => BASE_HOSTS.some((host) => domain === host || domain.endsWith(`.${host}`));
+
+async function applyDomains() {
   const { domains = [] } = await browser.storage.local.get("domains");
   const granted = [];
   for (const domain of domains) {
@@ -47,8 +91,9 @@ async function apply() {
   browser.webRequest.onBeforeRequest.removeListener(onRequest);
   browser.webRequest.onBeforeRequest.addListener(onRequest, { urls: rules.urls, types: ["image", "imageset", "xmlhttprequest", "other"] }, ["blocking"]);
   if (registered) await registered.unregister();
-  registered = granted.length
-    ? await browser.contentScripts.register({ matches: granted.map((domain) => `*://${domain}/*`), js: [{ file: "config.js" }, { file: "loader.js" }], css: [{ file: "ui/panels.css" }], runAt: "document_start" })
+  const injected = granted.filter((domain) => !coveredByManifest(domain));
+  registered = injected.length
+    ? await browser.contentScripts.register({ matches: injected.map((domain) => `*://${domain}/*`), js: [{ file: "config.js" }, { file: "loader.js" }], css: [{ file: "ui/panels.css" }], runAt: "document_start" })
     : null;
 }
 

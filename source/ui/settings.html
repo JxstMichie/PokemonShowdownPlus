@@ -1,28 +1,75 @@
 <!doctype html>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pokemon Showdown HD settings</title>
 <link rel="stylesheet" href="panels.css">
-<style>body{font-family:sans-serif;padding:24px;background:#6a8}body.dark{background:#222;color:#fff}fieldset{display:inline-block;margin-bottom:12px}.row{display:flex;gap:70px;margin:16px 0}.row pokemon-hp{width:300px;flex:none}</style>
-<h2>Custom domains</h2>
-<div id="domainbox">
-  <input id="domain" placeholder="localhost or 192.168.1.5"> <button id="add">Add</button>
-  <ul id="domains"></ul>
-</div>
-<h2>Debug</h2>
-<label><input type="checkbox" id="apngdata"> Show apng data</label>
-<h2>Mega outline</h2>
-<fieldset>
-  <label><input type="radio" name="style" value="wobble" checked> Wobble</label>
-  <label><input type="radio" name="style" value="minimal"> Minimal</label>
-  <label><input type="radio" name="style" value="none"> None</label>
-</fieldset>
-<label><input type="checkbox" id="pause"> Pause colors</label>
-<h2>Preview</h2>
-<label><input type="checkbox" id="dark"> dark</label>
-<label><input type="checkbox" id="dynamax"> dynamax</label>
-<label>hp <input type="range" id="hp" min="0" max="100" value="70"></label>
-<div class="phd-layer" style="position:static;overflow:visible">
-  <div class="row"><pokemon-hp id="p1"></pokemon-hp><pokemon-hp id="p2"></pokemon-hp></div>
-  <div class="row"><pokemon-hp id="e1"></pokemon-hp></div>
+<style>
+  body { font-family: sans-serif; margin: 0; padding: 16px; background: #e8eef0; color: #111; font-size: 13px; }
+  body.dark { background: #222; color: #fff; }
+  h2 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
+  .page { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; max-width: 1000px; margin: 0 auto; align-items: start; }
+  @media (max-width: 760px) { .page { grid-template-columns: 1fr; } }
+  .card { background: rgba(255, 255, 255, .55); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+  body.dark .card { background: rgba(255, 255, 255, .07); }
+  .card label { display: block; margin: 3px 0; }
+  .card fieldset { border: 0; padding: 0; margin: 4px 0 0 14px; }
+  .card ul { margin: 4px 0 0; padding-left: 18px; }
+  .card input[type=text], #domain { width: 130px; }
+  .stage { outline: 1px solid #000; margin: 1px; position: relative; width: 640px; height: 360px; overflow: hidden; border-radius: 6px; zoom: var(--zoom, 1); }
+  body.dark .stage { outline-color: #fff; }
+  .stage .phd-layer { z-index: 2; }
+  .previewbox { overflow: auto; }
+  .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .side .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-weight: bold; text-transform: capitalize; }
+  .head input { width: 50px; }
+  .slot { display: flex; gap: 8px; align-items: center; padding: 4px 0; border-top: 1px solid rgba(128, 128, 128, .25); }
+  .slot label { margin: 0; }
+  .tools { display: flex; gap: 14px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .tools label { margin: 0; }
+</style>
+<div class="page">
+  <div class="left">
+    <div class="card">
+      <h2>HP bar style</h2>
+      <label><input type="radio" name="hpstyle" value="standard" checked> sw/sh standard</label>
+      <label><input type="radio" name="hpstyle" value="compact"> sw/sh doubles compact</label>
+    </div>
+    <div class="card">
+      <h2>Mega outline</h2>
+      <label><input type="radio" name="style" value="wobble" checked> Wobble</label>
+      <label><input type="radio" name="style" value="minimal"> Minimal</label>
+      <label><input type="radio" name="style" value="none"> None</label>
+      <label><input type="checkbox" id="pause"> Pause colors</label>
+    </div>
+    <div class="card">
+      <h2>Debug</h2>
+      <label><input type="checkbox" id="apngdata"> Show apng data</label>
+      <fieldset id="apngfields">
+        <label><input type="checkbox" value="box"> Sprite box</label>
+        <label><input type="checkbox" value="center"> Middle point</label>
+        <label><input type="checkbox" value="origin"> Origin</label>
+        <label><input type="checkbox" value="highest"> Highest point</label>
+        <label><input type="checkbox" value="hash"> Hash</label>
+        <label><input type="checkbox" value="animation"> Animation name</label>
+      </fieldset>
+    </div>
+    <div class="card" id="domainbox">
+      <h2>Custom domains</h2>
+      <input id="domain" placeholder="localhost"> <button id="add">Add</button>
+      <ul id="domains"></ul>
+    </div>
+  </div>
+  <div class="right">
+    <div class="card previewbox">
+      <h2>Preview</h2>
+      <div class="tools">
+        <label><input type="checkbox" id="dark"> dark</label>
+      </div>
+      <div class="stage" id="stage">
+        <div class="phd-layer" id="layer"></div>
+      </div>
+      <div class="sides" id="sides"><div class="card side" data-side="player"></div><div class="card side" data-side="enemy"></div></div>
+    </div>
+  </div>
 </div>
 <script src="settings.js"></script>

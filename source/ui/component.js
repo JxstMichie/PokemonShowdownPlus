@@ -20,9 +20,30 @@
   const escapeXML = (value) => String(value).replace(/[&<>"']/g, (c) => ENTITIES[c]);
 
   //doubles: the second player panel uses the trimmed shape
-  const shapeOf = (state) => {
+  const mirrored = (shape) => {
+    const xs = shape.map((point) => point[0]);
+    const sum = Math.min(...xs) + Math.max(...xs);
+    return shape.map(([x, y]) => [sum - x, y]);
+  };
+  const MIRRORED = mirrored(shapes.playerFull);
+  const CAPPED = shapes.playerTrimmed.map(([x, y], index) => (index === 2 ? [shapes.playerTrimmed[1][0], y] : [x, y]));
+  const SLIM_CUT = 133;
+  const MIN_PAD = 4;
+  const viewOf = (state) => (state.slim ? { left: view.left + SLIM_CUT, width: view.width - SLIM_CUT } : { left: view.left, width: view.width });
+  const baseShape = (state) => {
     if (state.side === "enemy") return shapes.enemy;
+    if (state.mirror && state.slim) return CAPPED;
+    if (state.mirror) return MIRRORED;
     return state.compact && !state.flushLeft ? shapes.playerTrimmed : shapes.playerFull;
+  };
+  const shapeOf = (state) => state.slim ? baseShape(state).map(([x, y]) => [x < view.left + SLIM_CUT ? x + SLIM_CUT : x, y]) : baseShape(state);
+  const slimRow = (count, width, enemy) => {
+    const inner = view.width - SLIM_CUT;
+    const natural = inner * D.panel.width / view.width;
+    const reach = (view.left + view.width - (enemy ? shapes.enemy[2][0] : shapes.playerFull[1][0])) / inner;
+    const pad = Math.max(MIN_PAD, Math.min(46, (width - (count - reach) * natural) / (count - 1)));
+    const panel = Math.min(natural, (width - pad * (count - 1)) / (count - reach));
+    return { pad, width: panel, overhang: reach * panel };
   };
 
   //a nested svg whose viewBox is one picture's rectangle crops that picture out of the sheet
@@ -56,6 +77,8 @@
     state.status = statusLabels[state.status] ? state.status : "none";
     state.compact = !!state.compact;
     state.flushLeft = !!state.flushLeft;
+    state.mirror = !!state.mirror;
+    state.slim = !!state.slim;
     state.mega = !!state.mega;
     state.dynamax = !!state.dynamax;
     state.megaStyle = STYLES.includes(state.megaStyle) ? state.megaStyle : megaStyle;
@@ -148,8 +171,8 @@
     //the enemy only has a percent so no numbers are shown
     const numbers = state.side === "enemy" ? "" : `<g data-numbers="" class="ink">${hpNumbers(hp, state.maxHP)}</g>`;
     const description = `${state.name}, level ${state.level}, HP ${state.hp} of ${state.maxHP}${state.status === "none" ? "" : ", " + statusLabels[state.status]}`;
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${view.left} ${view.top} ${view.width} ${view.height}" role="img" aria-label="${escapeXML(description)}"><style>${SHADOW_CSS}${state.dynamax ? "text{fill:#fff!important}.ink{filter:invert(1)!important}" : ""}${state.mega ? megaCss(Math.max(...shapeOf(state).map((point) => point[0])) - Math.min(...shapeOf(state).map((point) => point[0]))) : ""}text{font-family:ShieldRodin,sans-serif;fill:var(--phd-ink,#000)}polygon{fill:var(--phd-bg,#fff)}.ink{filter:var(--phd-ink-filter,none)}</style>` +
-      (state.mega && state.megaStyle !== "none" ? drawMega(shapeOf(state), state.megaStyle === "wobble") : "") + `<polygon points="${points}" fill-opacity=".902"${state.dynamax ? ' style="fill:#d91c5e"' : ""}/>` + drawName(state, at) + drawLevel(state, at) + drawStatus(state, at) + drawItem(state) + drawBar(at, clamp(hp / state.maxHP, 0, 1)) + numbers + "</svg>";
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewOf(state).left} ${view.top} ${viewOf(state).width} ${view.height}" role="img" aria-label="${escapeXML(description)}"><style>${SHADOW_CSS}${state.dynamax ? "text{fill:#fff!important}.ink{filter:invert(1)!important}" : ""}${state.mega ? megaCss(Math.max(...shapeOf(state).map((point) => point[0])) - Math.min(...shapeOf(state).map((point) => point[0]))) : ""}text{font-family:ShieldRodin,sans-serif;fill:var(--phd-ink,#000)}polygon{fill:var(--phd-bg,#fff)}.ink{filter:var(--phd-ink-filter,none)}</style>` +
+      (state.mega && state.megaStyle !== "none" ? drawMega(shapeOf(state), state.megaStyle === "wobble") : "") + `<polygon points="${points}" fill-opacity=".902"${state.dynamax ? ' style="fill:#d91c5e"' : ""}/>` + drawName(state, at) + drawLevel(state, at) + drawStatus(state, at) + (state.slim ? "" : drawItem(state)) + drawBar(at, clamp(hp / state.maxHP, 0, 1)) + numbers + "</svg>";
   }
 
   //an empty class lets tests load the file outside a browser
@@ -244,7 +267,7 @@
     }
   }
 
-  global.PokemonHP = { data: D, renderSVG, shapeOf };
+  global.PokemonHP = { data: D, renderSVG, shapeOf, viewOf, slimRow };
   if (global.document) {
     global.document.addEventListener("phd-settings", (event) => {
       const detail = JSON.parse(event.detail);

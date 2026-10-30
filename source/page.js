@@ -113,6 +113,7 @@
     S.addPokemonSprite = function (pokemon) {
       const sprite = addPokemonSprite.apply(this, arguments);
       try {
+        sprite.__phdPokemon = pokemon;
         hitboxOf(actionUrl(sprite, ""));
         warm(sprite);
       } catch (e) { console.warn("[phd]", e); }
@@ -388,19 +389,29 @@
   const STATBAR_HEIGHT = 42;
   const STATBAR_HALF_WIDTH = 80;
   const SPRITE_FOLDER = /\/PokemonHD_Gen(\d)\/main\/(\d{4}_[^/]+)\//;
-  const PATCH_TIMEOUT = 2000;
+  const PATCH_TIMEOUT = 8000;
   const ISSUES_URL = "https://github.com/JxstMichie/PokemonShowdownPlus/issues";
   const patchWaiters = {};
+  const iconFallback = new Set();
   document.addEventListener("phd-patch", (event) => {
     const { name, entry } = JSON.parse(event.detail);
     if (entry) {
+      iconFallback.delete(name);
       cfg.placements[name] = entry;
       console.info(`[phd] patched ${name} from data.json ${entry.hash}`);
     }
     const waiting = patchWaiters[name] || [];
     delete patchWaiters[name];
     waiting.forEach((resolve) => resolve(Boolean(entry)));
-    if (entry) refresh();
+    if (entry) {
+      for (const url of [...hitboxDone]) {
+        const match = SPRITE_FILE.exec(url);
+        if (!match || match[1] !== name) continue;
+        hitboxDone.delete(url);
+        delete hitboxes[url];
+      }
+      refresh();
+    }
   });
 
   async function readHashTag(blob) {
@@ -429,6 +440,11 @@
         const index = waiting.indexOf(resolve);
         if (index >= 0) waiting.splice(index, 1);
         if (!waiting.length && patchWaiters[name] === waiting) delete patchWaiters[name];
+
+        //Lazy fallback, if failed to load we just use its team icon
+        if (!iconFallback.has(name)) console.warn(`[phd] ${name} sprite data did not update within ${PATCH_TIMEOUT / 1000}s, showing its icon until it does`);
+        iconFallback.add(name);
+
         resolve(false);
       }, PATCH_TIMEOUT);
       if (waiting.length > 1) return;
@@ -459,14 +475,45 @@
   function refresh() {
     statbarScenes.forEach((scene) => { relayout(scene); placeStatbars(scene); gateScene(scene); });
   }
+  function speciesOf(sp) {
+    const m = PSHOWDOWN_SPRITE_URL.exec((sp && sp.url) || "");
+    const folder = m && phdFind(list, m[3]);
+    return folder ? folder.name : null;
+  }
+  function dropIcon(sprite) {
+    if (!sprite.__phdIcon) return;
+    sprite.__phdIcon.remove();
+    sprite.__phdIcon = null;
+  }
+  function showIcon(sprite) {
+    const el = sprite.$el && sprite.$el[0];
+    const pokemon = sprite.__phdPokemon;
+    if (!el || !pokemon || !el.parentNode) return;
+    if (!sprite.__phdIcon) {
+      const icon = document.createElement("span");
+      icon.setAttribute("style", `${Dex.getPokemonIcon(pokemon, !!sprite.isFrontSprite)};position:absolute;width:${ICON_W}px;height:${ICON_H}px;transform:scale(${ICON_SCALE});transform-origin:0 0;image-rendering:pixelated;pointer-events:none`);
+      icon.setAttribute("title", pokemon.speciesForme);
+      el.parentNode.appendChild(icon);
+      sprite.__phdIcon = icon;
+    }
+    const left = parseFloat(el.style.left), top = parseFloat(el.style.top), width = parseFloat(el.style.width), height = parseFloat(el.style.height);
+    const icon = sprite.__phdIcon;
+    if (![left, top, width, height].every(Number.isFinite)) return;
+    icon.style.left = Math.round(left + width / 2 - ICON_W * ICON_SCALE / 2) + "px";
+    icon.style.top = Math.round(top + height - ICON_H * ICON_SCALE) + "px";
+    icon.style.zIndex = el.style.zIndex;
+    icon.style.display = el.style.display === "none" ? "none" : "block";
+  }
   function gate(sprite) {
     if (!sprite || !sprite.sp || !placementOf(sprite.sp)) return;
     const url = actionUrl(sprite, "");
     if (!url) return;
     hitboxOf(url);
+    const fallback = iconFallback.has(speciesOf(sprite.sp));
     const visibility = hitboxDone.has(url) ? "" : "hidden";
-    if (sprite.$el) sprite.$el.css("visibility", visibility);
+    if (sprite.$el) sprite.$el.css("visibility", fallback ? "hidden" : visibility);
     if (sprite.$statbar) sprite.$statbar.css("visibility", visibility);
+    if (fallback) showIcon(sprite); else dropIcon(sprite);
   }
   function gateScene(scene) {
     const battle = scene.battle;

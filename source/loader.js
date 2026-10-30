@@ -1,4 +1,6 @@
 (async () => {
+  if (globalThis.__phdLoader) return;
+  globalThis.__phdLoader = true;
   const runtime = browser.runtime;
 
   const backdrop = document.createElement("style");
@@ -29,11 +31,31 @@
     fetch(runtime.getURL("doubles.json")).then((response) => response.json()).then((data) => ({ doubles: data.doubles || null, hpBars: data.hpBars || null })).catch(() => null),
     fetch(runtime.getURL("move.json")).then((response) => response.json()).catch(() => null), //Might have some errors, should be a temp solution 
     fetch(runtime.getURL("ui/data.json")).then((response) => response.json()),
-    browser.storage.local.get(["megaStyle", "pauseColors", "showApngData"]).catch(() => ({})),
+    browser.storage.local.get(null).catch(() => ({})),
   ]);
+  const { tags: baselineTags, overwrite, changed, removals } = phdReconcile(placements, settings || {});
+  if (changed) browser.storage.local.set({ [PHD_OVERWRITE]: overwrite }).catch(() => {});
+  if (removals.length) browser.storage.local.remove(removals).catch(() => {});
+
   const send = (name, detail) => document.dispatchEvent(new CustomEvent(name, { detail: JSON.stringify(detail) }));
 
-  browser.storage.onChanged.addListener((changes) => send("phd-settings", { megaStyle: changes.megaStyle && changes.megaStyle.newValue, pauseColors: changes.pauseColors && changes.pauseColors.newValue, showApngData: changes.showApngData && changes.showApngData.newValue }));
+  browser.storage.onChanged.addListener((changes) => {
+    if (!changes.megaStyle && !changes.pauseColors && !changes.showApngData) return;
+    send("phd-settings", { megaStyle: changes.megaStyle && changes.megaStyle.newValue, pauseColors: changes.pauseColors && changes.pauseColors.newValue, showApngData: changes.showApngData && changes.showApngData.newValue });
+  });
+
+  document.addEventListener("phd-stale", async (event) => {
+    let request;
+    try { request = JSON.parse(String(event.detail)); } catch (error) { return; }
+    const { name, dir, tag } = request;
+    let entry = null;
+    try {
+      const current = placements[name];
+      entry = await runtime.sendMessage({ type: "phd-stale", name, dir, tag, base: baselineTags[name] || "", aerial: Boolean(current && current.aerial) });
+    } catch (error) { entry = null; }
+    if (entry) placements[name] = entry;
+    send("phd-patch", { name, entry: entry || null });
+  });
 
   const durations = {};
   document.addEventListener("phd-duration-request", async (event) => {

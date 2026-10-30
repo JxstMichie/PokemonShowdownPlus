@@ -33,20 +33,11 @@
     fetch(runtime.getURL("ui/data.json")).then((response) => response.json()),
     browser.storage.local.get(null).catch(() => ({})),
   ]);
-  const { tags: baselineTags, overwrite, changed, removals } = phdApplyOverwrites(placements, settings || {});
-  if (changed) browser.storage.local.set({ [PHD_OVERWRITE]: overwrite }).catch(() => {});
-  if (removals.length) browser.storage.local.remove(removals).catch(() => {});
+  const { tags: baselineTags, dropped, added, removals } = phdApplyOverwrites(placements, settings || {});
+  if (dropped.length || removals.length || Object.keys(added).length) runtime.sendMessage({ type: "phd-sync", dropped, added, removals }).catch(() => {});
 
   const send = (name, detail) => document.dispatchEvent(new CustomEvent(name, { detail: JSON.stringify(detail) }));
 
-  /*
-  This just stores settings from the built in html
-
-  phd-stale is just used for new data.json entries fetched from github once they mismatch the precompiled
-  meta-data.json list
-
-  check data.md # render metadata
-  */
   browser.storage.onChanged.addListener((changes) => {
     if (!changes.megaStyle && !changes.pauseColors && !changes.showApngData && !changes.apngFields && !changes.hpStyle) return;
     send("phd-settings", { megaStyle: changes.megaStyle && changes.megaStyle.newValue, pauseColors: changes.pauseColors && changes.pauseColors.newValue, showApngData: changes.showApngData && changes.showApngData.newValue, apngFields: changes.apngFields && changes.apngFields.newValue, hpStyle: changes.hpStyle && changes.hpStyle.newValue });
@@ -82,7 +73,7 @@
     "debug.js": { showApngData: settings && settings.showApngData, apngFields: settings && settings.apngFields }
   };
 
-  for (const file of ["config.js", "ui/component.js", "page.js", "ui/panels.js", "debug.js"]) {
+  for (const file of ["config.js", "ui/component.js", "ui/ability.js", "page.js", "ui/panels.js", "debug.js"]) {
     const script = document.createElement("script");
     script.src = runtime.getURL(file);
     script.async = false;

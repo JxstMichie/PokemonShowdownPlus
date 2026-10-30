@@ -521,21 +521,22 @@
     const precompiled = precompiledHitbox(url);
     fetch(url).then((response) => response.blob()).then(async (blob) => {
       try { await checkSpriteHash(url, blob); } catch (e) { console.warn("[phd]", e); }
-      if (precompiled && precompiledHitbox(url)) return null;
+      const current = precompiledHitbox(url);
+      if (current) {
+        hitboxes[url] = current;
+        return null;
+      }
       return createImageBitmap(blob);
     }).then((bitmap) => {
-      if (!bitmap) return;
-      const box = scanHitbox(bitmap);
-      bitmap.close();
-      if (box) hitboxes[url] = box;
-      if (precompiled) refresh(); else finish();
-    }).catch(precompiled ? () => {} : finish);
-    if (precompiled) {
-      hitboxes[url] = precompiled;
+      if (bitmap) {
+        const box = scanHitbox(bitmap);
+        bitmap.close();
+        if (box) hitboxes[url] = box;
+      }
       finish();
-      return precompiled;
-    }
-    return null;
+    }).catch(finish);
+    if (precompiled) hitboxes[url] = precompiled;
+    return precompiled;
   }
 
   function spriteHitbox(sprite) {

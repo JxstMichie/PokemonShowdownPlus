@@ -55,6 +55,7 @@ These get pre-gennerated by @NathanMichael
       "w": 141.5, "h": 160.5,//sprite width and height for showdown (mostly redundent)
       
       "center": "433.97,147.93", //Center of torso 
+      "origin": "434.09,198.16", //Point the Pokemon stands on, used to place it on the battlefield
       "tallest-point": "432.25,118.00" //Height of Pokemon
     },
     "back": { //exact same but for back-ani
@@ -62,16 +63,16 @@ These get pre-gennerated by @NathanMichael
     },
     /*
     This is the hash of the Pkm's Data.json
-    
-    This is done because the client always needs to fetch the apng but each client already has a precompiled render_metadata.json,
-    But if the renders on github ever were to be updated that COULD change the data.json which the client does not read because of bandwith conservation
-    So instead we compare the hash embedded to our hashes in our precompiled and ONLY if it does not match we fetch the new data.json
-    and update the precompiled list
 
-    This saves us from fetching from github just because the sprite updated
+    It's there to save unecessary bandwith, sometimes when a sprite is updated it can change the Data.json and makes the cords invalid but we also don't want to fetch it each time and verify it's updated so instead we do
+
+    fetch apng 
+    check hash
+    check last hash stored in meta-data.json
+    if match: continue 
+    else: fetch new data.json
     */
-    "hash": "62bffe9e", //first 8 hex characters of the SHA-256
-    "aerial": true // Determines if they levitate and should get a levitate offset 
+    "hash": "62bffe9e" //first 8 hex characters of the SHA-256
 ```
 
 ## move

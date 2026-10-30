@@ -29,19 +29,27 @@
     fetch(runtime.getURL("sprites.txt")).then((response) => response.text()),
     fetch(runtime.getURL("render_metadata.json")).then((response) => response.json()),
     fetch(runtime.getURL("doubles.json")).then((response) => response.json()).then((data) => ({ doubles: data.doubles || null, hpBars: data.hpBars || null })).catch(() => null),
-    fetch(runtime.getURL("move.json")).then((response) => response.json()).catch(() => null), //Might have some errors, should be a temp solution 
+    fetch(runtime.getURL("move.json")).then((response) => response.json()).catch(() => null), //Might have some errors, should be a temp solution
     fetch(runtime.getURL("ui/data.json")).then((response) => response.json()),
     browser.storage.local.get(null).catch(() => ({})),
   ]);
-  const { tags: baselineTags, overwrite, changed, removals } = phdReconcile(placements, settings || {});
+  const { tags: baselineTags, overwrite, changed, removals } = phdApplyOverwrites(placements, settings || {});
   if (changed) browser.storage.local.set({ [PHD_OVERWRITE]: overwrite }).catch(() => {});
   if (removals.length) browser.storage.local.remove(removals).catch(() => {});
 
   const send = (name, detail) => document.dispatchEvent(new CustomEvent(name, { detail: JSON.stringify(detail) }));
 
+  /*
+  This just stores settings from the built in html
+
+  phd-stale is just used for new data.json entries fetched from github once they mismatch the precompiled
+  meta-data.json list
+
+  check data.md # render metadata
+  */
   browser.storage.onChanged.addListener((changes) => {
-    if (!changes.megaStyle && !changes.pauseColors && !changes.showApngData) return;
-    send("phd-settings", { megaStyle: changes.megaStyle && changes.megaStyle.newValue, pauseColors: changes.pauseColors && changes.pauseColors.newValue, showApngData: changes.showApngData && changes.showApngData.newValue });
+    if (!changes.megaStyle && !changes.pauseColors && !changes.showApngData && !changes.apngFields && !changes.hpStyle) return;
+    send("phd-settings", { megaStyle: changes.megaStyle && changes.megaStyle.newValue, pauseColors: changes.pauseColors && changes.pauseColors.newValue, showApngData: changes.showApngData && changes.showApngData.newValue, apngFields: changes.apngFields && changes.apngFields.newValue, hpStyle: changes.hpStyle && changes.hpStyle.newValue });
   });
 
   document.addEventListener("phd-stale", async (event) => {
@@ -50,8 +58,7 @@
     const { name, dir, tag } = request;
     let entry = null;
     try {
-      const current = placements[name];
-      entry = await runtime.sendMessage({ type: "phd-stale", name, dir, tag, base: baselineTags[name] || "", aerial: Boolean(current && current.aerial) });
+      entry = await runtime.sendMessage({ type: "phd-stale", name, dir, tag, base: baselineTags[name] || "" });
     } catch (error) { entry = null; }
     if (entry) placements[name] = entry;
     send("phd-patch", { name, entry: entry || null });
@@ -70,8 +77,9 @@
 
   const configs = {
     "ui/component.js": { ui, megaStyle: settings && settings.megaStyle, pauseColors: settings && settings.pauseColors },
+    "ui/panels.js": { hpStyle: settings && settings.hpStyle },
     "page.js": { size: 192, list, placements, doubles: layout && layout.doubles, hpBars: layout && layout.hpBars, lunge: moves && moves.lunge || [] },
-    "debug.js": { showApngData: settings && settings.showApngData }
+    "debug.js": { showApngData: settings && settings.showApngData, apngFields: settings && settings.apngFields }
   };
 
   for (const file of ["config.js", "ui/component.js", "page.js", "ui/panels.js", "debug.js"]) {

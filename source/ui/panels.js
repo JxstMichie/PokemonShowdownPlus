@@ -238,6 +238,14 @@
     arrange(sprite.scene);
   }
 
+  function release(sprite, mon) {
+    const panel = sprite.__phdPanel;
+    if (!panel || !sprite.scene) return;
+    if (panel.__phdIdent === mon.ident) panel.style.visibility = "hidden";
+    if (sprite.__phdChips) sprite.__phdChips.style.display = "none";
+    arrange(sprite.scene);
+  }
+
   //damage and healing only call updateHPText and never updateStatbar so both are wrapped
   //returns false while the client has not defined PokemonSprite yet
   function install() {
@@ -252,13 +260,23 @@
             return result;
           } else if (this.$statbar && mon.isActive()) {
             sync(this, mon);
-          } else if (this.__phdPanel) {
-            if (this.__phdPanel.__phdIdent === mon.ident) this.__phdPanel.style.visibility = "hidden";
-            if (this.__phdChips) this.__phdChips.style.display = "none";
-            arrange(this.scene);
+          } else {
+            release(this, mon);
           }
         } catch (error) {
           console.warn("[phd-hp]", error); //a bug here must never break the game
+        }
+        return result;
+      };
+    }
+    for (const name of ["animUnsummon", "animFaint"]) {
+      const original = PokemonSprite.prototype[name];
+      PokemonSprite.prototype[name] = function (mon) {
+        const result = original.apply(this, arguments);
+        try {
+          if (!mon.isActive()) release(this, mon);
+        } catch (error) {
+          console.warn("[phd-hp]", error);
         }
         return result;
       };

@@ -89,7 +89,6 @@ def main():
                for g in sorted(ANI.glob("gen[1-9]"))
                for d in sorted(g.glob("[0-9][0-9][0-9][0-9]_*")) if d.is_dir()]
     metadata_path = DATA / "render_metadata.json"
-    previous = json.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.exists() else {}
     placements = {}
     for gen, d, name in folders:
         if (d / "data.json").exists():
@@ -97,8 +96,6 @@ def main():
             data = json.loads(raw.decode("utf-8"))
             boxes = {v: {**{k: round(data[v][k], 1) for k in "xywh"}, **{k: data[v][k] for k in ("center", "origin", "tallest-point") if k in data[v]}} for v in ("front", "back") if v in data}
             if boxes:
-                if data.get("aerial", previous.get(name, {}).get("aerial", False)):
-                    boxes["aerial"] = True
                 boxes["hash"] = hashlib.sha256(raw.replace(b"\r", b"")).hexdigest()[:8]
                 placements[name] = boxes
     metadata_path.write_text(json.dumps(placements, separators=(",", ":")), encoding="utf-8")

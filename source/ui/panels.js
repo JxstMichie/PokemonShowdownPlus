@@ -1,12 +1,14 @@
 (() => {
   if (!window.PokemonHP) return;
 
-  const { data: { view, shapes, panel: P }, shapeOf } = PokemonHP;
+  let hpStyle = "standard";
+  try { hpStyle = JSON.parse(document.currentScript.dataset.cfg).hpStyle || "standard"; } catch (error) {}
+
+  const { data: { view, shapes, panel: P }, shapeOf, viewOf, slimRow } = PokemonHP;
   const STATUS = { brn: "burn", par: "paralysis", psn: "poison", tox: "toxic", slp: "sleep", frz: "freeze" };
   const GENDER = { M: "male", F: "female" };
 
   const unit = P.width / view.width;
-  const toX = (x) => (x - view.left) * unit;
   const toY = (y) => (y - view.top) * unit;
   const topMiddle = (shape) => (shape[0][0] + shape[1][0]) / 2;
   const boxWidth = P.chip.perRow * P.chip.width + (P.chip.perRow - 1) * P.chip.gap;
@@ -19,6 +21,8 @@
   //room for every chip row is reserved under the player panel so panels never move when chips appear
   const spaceBelowShape = (view.top + view.height - shapes.playerFull[2][1]) * unit;
   const playerBottom = P.bottomGap + P.chip.rowsReserved * P.chip.rowHeight + P.chipsGap - spaceBelowShape;
+
+  const mirrorOverhang = (view.left + view.width - shapes.playerFull[1][0]) * unit;
 
   const make = (tag, className, parent) => {
     const node = document.createElement(tag);
@@ -39,7 +43,7 @@
     if (!stage) return null;
     stage.classList.add("phd-on");
     const layer = make("div", "phd-layer");
-    const vars = { panel: P.width, chip: P.chip.width, gap: P.chip.gap, row: P.chip.rowHeight, box: boxWidth, overhang: enemyOverhang, "enemy-top": enemyTop, "player-bottom": playerBottom };
+    const vars = { panel: P.width, chip: P.chip.width, gap: P.chip.gap, row: P.chip.rowHeight, box: boxWidth, overhang: enemyOverhang, "enemy-top": enemyTop, "mirror-overhang": mirrorOverhang, "player-bottom": playerBottom };
     for (const name in vars) layer.style.setProperty("--" + name, vars[name] + "px");
     stage.insertBefore(layer, [...stage.children].find((child) => child.matches(".messagebar, .turn") || child.querySelector(".turn")) || null);
     return layer;
@@ -90,9 +94,17 @@
       box.style.display = "none";
       return;
     }
-    const left = Math.max(2, Math.min(stageWidth - boxWidth - 2, row.offsetLeft + panel.offsetLeft + toX(topMiddle(shape)) - boxWidth / 2));
+    const left = Math.max(2, Math.min(stageWidth - boxWidth - 2, row.offsetLeft + panel.offsetLeft + (topMiddle(shape) - viewOf(panel.state).left) * panel.offsetWidth / viewOf(panel.state).width - boxWidth / 2));
     box.style.left = Math.round(left) + "px";
     box.style.top = Math.round(row.offsetTop + panel.offsetTop + toY(shape[2][1]) + P.chipsGap) + "px";
+  }
+
+  function applySlim(row, count, enemy) {
+    const fit = count > 3 ? slimRow(count, row.parentElement.clientWidth || 640, enemy) : null;
+    row.style.setProperty("--pad", fit ? fit.pad + "px" : "");
+    row.style.setProperty("--slim-w", fit ? fit.width + "px" : "");
+    row.style.setProperty(enemy ? "--overhang" : "--mirror-overhang", fit ? fit.overhang + "px" : "");
+    return !!fit;
   }
 
   const sidesOf = (battle) => [[battle.nearSide, false], [battle.farSide, true]];
@@ -126,14 +138,23 @@
 
   function arrange(scene) {
     if (!scene.battle) return;
+    const spread = hpStyle === "compact" && scene.activeCount === 2;
     for (const [side, enemy] of sidesOf(scene.battle)) {
       const row = scene.__phdRows && scene.__phdRows[enemy];
       const panels = (row && row.__phdPanels) || {};
+      if (row) {
+        row.classList.toggle("phd-spread", !enemy && spread);
+        applySlim(row, Object.keys(panels).length, enemy);
+      }
       for (const slot in panels) {
         const panel = panels[slot];
-        panel.style.order = slot;
         const flushLeft = !enemy && +slot === 0;
-        if (panel.state.flushLeft !== flushLeft) panel.setState({ flushLeft });
+        const count = Object.keys(panels).length, slim = count > 3;
+        const mirror = !enemy && (spread && +slot === 1 || slim && +slot === count - 1);
+        panel.classList.toggle("phd-slim", slim);
+        panel.classList.toggle("phd-mirror", mirror);
+        panel.style.order = slot;
+        if (panel.state.flushLeft !== flushLeft || panel.state.mirror !== mirror || panel.state.slim !== slim) panel.setState({ flushLeft, mirror, slim });
         if (panel.style.visibility !== "hidden" && panel.__phdSprite && panel.__phdSprite.scene) drawChips(panel.__phdSprite, panel);
       }
     }
@@ -211,6 +232,13 @@
     };
     return true;
   }
+
+  document.addEventListener("phd-settings", (event) => {
+    const detail = JSON.parse(event.detail);
+    if (typeof detail.hpStyle !== "string") return;
+    hpStyle = detail.hpStyle;
+    (window.__phdScenes || new Set()).forEach((scene) => { try { arrange(scene); } catch (error) { console.warn("[phd-hp]", error); } });
+  });
 
   const timer = install() ? 0 : setInterval(() => install() && clearInterval(timer), 50);
 })();

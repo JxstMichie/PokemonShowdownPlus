@@ -1,9 +1,9 @@
 (() => {
   const cfg = JSON.parse(document.currentScript.dataset.cfg);
   const NS = "http://www.w3.org/2000/svg";
-  const YELLOW = "#ffdc00", RED = "#ff2828", GREEN = "#28ff50", CYAN = "#50c8ff";
+  const YELLOW = "#ffdc00", RED = "#ff2828", GREEN = "#28ff50", CYAN = "#50c8ff", MAGENTA = "#ff4dff";
   const overlays = new Map();
-  const FIELDS = ["box", "center", "origin", "highest", "hash", "animation"];
+  const FIELDS = ["box", "center", "origin", "highest", "hitbox", "hash", "animation"];
   let enabled = !!cfg.showApngData, announced = false;
   let fields = new Set(Array.isArray(cfg.apngFields) ? cfg.apngFields : FIELDS);
 
@@ -46,9 +46,10 @@
     return `<rect x="${x - 2}" y="${y - 11}" width="${text.length * 6.6 + 4}" height="14" fill="rgba(0,0,0,.65)"/><text x="${x}" y="${y}" fill="${color}" font-family="sans-serif" font-size="12">${text}</text>`;
   }
 
-  function marks(place, width, height, hash, animation) {
+  function marks(place, width, height, hash, animation, hit) {
     const at = (x, y) => [(x - place.x) / place.w * width, (y - place.y) / place.h * height];
     let out = fields.has("box") ? `<rect x="1" y="1" width="${Math.max(0, width - 2)}" height="${Math.max(0, height - 2)}" fill="none" stroke="${YELLOW}" stroke-width="2"/>` : "";
+    if (hit && fields.has("hitbox")) out += `<rect x="${hit.x * width}" y="${hit.y * height}" width="${hit.w * width}" height="${hit.h * height}" fill="rgba(255,77,255,.12)" stroke="${MAGENTA}" stroke-width="2" stroke-dasharray="6 3"/>` + label(hit.x * width + 2, hit.y * height - 4, "hitbox", MAGENTA);
     let line = 14;
     const note = (text) => { out += label(width + 6, line, text, YELLOW); line += 16; };
     if (hash && fields.has("hash")) note(`hash ${hash}`);
@@ -82,7 +83,7 @@
     svg.style.width = width + "px";
     svg.style.height = height + "px";
     const animation = decodeURIComponent((el.getAttribute("src") || "").split(/[?#]/)[0].split("/").pop() || "");
-    svg.innerHTML = marks(place, width, height, window.__phdHashOf && window.__phdHashOf(sprite.sp), animation);
+    svg.innerHTML = marks(place, width, height, window.__phdHashOf && window.__phdHashOf(sprite.sp), animation, window.__phdHitboxOf && window.__phdHitboxOf(sprite));
   }
 
   function clear() {

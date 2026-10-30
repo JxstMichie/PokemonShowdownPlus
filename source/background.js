@@ -19,6 +19,23 @@ function storeOverwrite(name, base, entry) {
   return patchSaving;
 }
 
+function syncOverwrites(message) {
+  patchSaving = patchSaving.catch(() => {}).then(async () => {
+    const stored = await browser.storage.local.get(PHD_OVERWRITE);
+    const overwrite = stored[PHD_OVERWRITE] || {};
+    for (const name of message.dropped) delete overwrite[name];
+    for (const name of Object.keys(message.added)) if (!(name in overwrite)) overwrite[name] = message.added[name];
+    await browser.storage.local.set({ [PHD_OVERWRITE]: overwrite });
+    if (message.removals.length) await browser.storage.local.remove(message.removals);
+  });
+  return patchSaving;
+}
+
+const isSyncMessage = (message) =>
+  message && message.type === "phd-sync" && Array.isArray(message.dropped) && Array.isArray(message.removals) &&
+  message.added && typeof message.added === "object" &&
+  message.removals.every((key) => typeof key === "string" && (key === "phdPatches" || key.startsWith(PHD_FRAGMENT)));
+
 function fetchAndStorePatch(message) {
   const key = `${message.name}:${message.tag}`;
   if (!patchTasks.has(key)) {
@@ -34,7 +51,11 @@ function fetchAndStorePatch(message) {
   return patchTasks.get(key);
 }
 
-browser.runtime.onMessage.addListener((message) => (isStaleMessage(message) ? fetchAndStorePatch(message) : undefined));
+browser.runtime.onMessage.addListener((message) => {
+  if (isStaleMessage(message)) return fetchAndStorePatch(message);
+  if (isSyncMessage(message)) return syncOverwrites(message).then(() => true, () => false);
+  return undefined;
+});
 
 const BASE_HOSTS = ["pokemonshowdown.com", "psim.us"];
 let rules;

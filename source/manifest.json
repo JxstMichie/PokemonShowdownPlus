@@ -37,6 +37,7 @@
     "page.js",
     "debug.js",
     "ui/component.js",
+    "ui/ability.js",
     "ui/panels.js",
     "ui/assets/*",
     "fx/*",

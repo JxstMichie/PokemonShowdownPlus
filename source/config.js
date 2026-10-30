@@ -81,6 +81,8 @@ function phdApplyOverwrites(placements, stored) {
       placements[name] = entry;
     }
   }
-  const changed = Object.keys(overwrite).sort().join() !== Object.keys(current).sort().join();
-  return { tags, overwrite, changed, removals };
+  const dropped = Object.keys(current).filter((name) => !(name in overwrite));
+  const fresh = {};
+  for (const name of Object.keys(overwrite)) if (!(name in current)) fresh[name] = overwrite[name];
+  return { tags, dropped, added: fresh, removals };
 }

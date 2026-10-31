@@ -1,21 +1,37 @@
-![](https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/logo.png)
-
-A fan project that adds HD renders to Pokémon Showdown. 
-<p>
-  <a href="https://addons.mozilla.org/en-US/firefox/addon/pokemon-showdown-plus/"><img src="https://raw.githubusercontent.com/JxstMichie/PokemonShowdownPlus/main/assets/github/firefox-store-icon.png" alt="Get for Firefox" width="150"></a>
-  <img src="https://raw.githubusercontent.com/JxstMichie/PokemonShowdownPlus/main/assets/github/chrome-store-icon-disabled.png" alt="Chrome (unavailable)" width="150">
+<p align="center">
+  <img 
+    src="https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/b_logo.png?raw=true"
+    alt="Showdown Plus logo"
+    width="90%"
+    style="max-width: 300px;"
+  />
 </p>
+<h3 align="center"> Modernized Pokemon Showdown </h3>
+<p align="center">
+  <a href="https://github.com/JxstMichie/PokemonShowdownPlus/releases/latest">
+  <img src="https://img.shields.io/github/v/release/JxstMichie/PokemonShowdownPlus?label=latest&color=7c3aed" alt="Latest Release"/>
+</a>
+  <img src="https://img.shields.io/badge/Firefox-FF7139?logo=firefoxbrowser&logoColor=white" alt="Get Pokémon Showdown Plus for Firefox"/>
+</a>
+</p>
+
+---
+
+# Showdown+
+Showdown+ is a pre-rendered extension that modifies the Pokemon showdown client and introduces a whole bunch of visual upgrades, this projectile is relatively small and in early Development. It's designed to be playable on low-end devices and low internet speeds
 
 > [!IMPORTANT]
 > - For sprite issues, such as incorrect rendering, please open an issue in this repository.
 > - Issues reported in the sprite repositories will not be addressed.
 > - This extension only supports the new Showdown client. Issues with the old client will not be fixed.
 > - Non-standard modes that do not use teams of six in singles or doubles battles are not supported.
-<img src="https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/showcase_preview.gif" alt="Battle showcase" width="400">
-<img src="https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/ability-showcase.gif" alt="Ability showcase" width="400">
+
+## Showcase
+<p align="center">
+  <img src="https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/showcase_preview.gif" alt="Battle showcase"   width="400">
+  <img src="https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/ability-showcase.gif" alt="Ability showcase" width="400">
 
 ## How to Build
-
 > [!NOTE]
 > Currently, only Firefox is supported.
 >

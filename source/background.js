@@ -125,4 +125,8 @@ browser.storage.onChanged.addListener((changes) => changes.domains && apply());
 browser.permissions.onAdded.addListener(apply);
 browser.permissions.onRemoved.addListener(apply);
 
-browser.browserAction.onClicked.addListener(() => browser.tabs.create({ url: browser.runtime.getURL("ui/settings.html") }));
+const openSettings = () => browser.tabs.create({ url: browser.runtime.getURL("ui/settings.html") });
+browser.browserAction.onClicked.addListener(openSettings);
+browser.runtime.onMessage.addListener((message) => {
+  if (message && message.type === "phd-open-settings") openSettings();
+});

@@ -3,3 +3,5 @@ dist/
 scripts/test/ani-coverage/*.txt
 scripts/__pycache__/
 ani/
+/scripts/package-mozilla-source.sh
+/mozilla-source.zip

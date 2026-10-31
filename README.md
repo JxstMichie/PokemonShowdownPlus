@@ -11,8 +11,8 @@ A fan project that adds HD renders to Pokémon Showdown.
 > - Issues reported in the sprite repositories will not be addressed.
 > - This extension only supports the new Showdown client. Issues with the old client will not be fixed.
 > - Non-standard modes that do not use teams of six in singles or doubles battles are not supported.
-
-![](https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/showcase_preview.gif)
+<img src="https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/showcase_preview.gif" alt="Battle showcase" width="400">
+<img src="https://github.com/JxstMichie/PokemonShowdownPlus/blob/main/assets/github/ability-showcase.gif" alt="Ability showcase" width="400">
 
 ## How to Build
 

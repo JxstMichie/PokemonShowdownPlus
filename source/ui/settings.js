@@ -184,6 +184,96 @@ async function start() {
       apply({ apngFields });
     };
   });
+  const debugFiles = { images: new Map(), data: null };
+  const dbgNS = "http://www.w3.org/2000/svg";
+  const readPoint = (text) => (text || "").split(",").map(Number);
+  const dbgImageSize = (url) => new Promise((resolve) => {
+    const probe = new Image();
+    probe.onload = () => resolve({ w: probe.naturalWidth, h: probe.naturalHeight });
+    probe.onerror = () => resolve({ w: 0, h: 0 });
+    probe.src = url;
+  });
+  async function renderDebugView() {
+    const name = $("dbgimage").value;
+    const image = debugFiles.images.get(name);
+    const svg = $("dbgsvg");
+    svg.replaceChildren();
+    if (!image) { $("dbginfo").textContent = "No image loaded"; return; }
+    const sideChoice = $("dbgside").value;
+    const side = sideChoice === "auto" ? (/back/i.test(name) ? "back" : "front") : sideChoice;
+    const place = debugFiles.data && (debugFiles.data[side] || debugFiles.data[side === "front" ? "back" : "front"]);
+    const size = await dbgImageSize(image.url);
+    const showStage = $("dbgstage").checked;
+    const rect = place ? { x: place.x, y: place.y, w: place.w, h: place.h } : { x: 0, y: 0, w: size.w, h: size.h };
+    const left = showStage ? Math.min(0, rect.x) : rect.x, top = showStage ? Math.min(0, rect.y) : rect.y;
+    const right = showStage ? Math.max(640, rect.x + rect.w) : rect.x + rect.w, bottom = showStage ? Math.max(360, rect.y + rect.h) : rect.y + rect.h;
+    const pad = 12;
+    svg.setAttribute("viewBox", `${left - pad} ${top - pad} ${right - left + pad * 2} ${bottom - top + pad * 2}`);
+    const add = (tag, attrs, text) => {
+      const node = document.createElementNS(dbgNS, tag);
+      for (const key in attrs) node.setAttribute(key, attrs[key]);
+      if (text) node.textContent = text;
+      svg.append(node);
+      return node;
+    };
+    const chosen = new Set(fieldBoxes.filter((box) => box.checked).map((box) => box.value));
+    if (showStage) add("rect", { x: 0, y: 0, width: 640, height: 360, fill: "none", stroke: "#3a7bd5", "stroke-width": 2, "stroke-dasharray": "8 5" });
+    add("image", { href: image.url, x: rect.x, y: rect.y, width: rect.w, height: rect.h });
+    const label = (x, y, text, color) => {
+      add("rect", { x: x - 2, y: y - 11, width: text.length * 6.6 + 4, height: 14, fill: "rgba(0,0,0,.65)" });
+      add("text", { x, y, fill: color, "font-family": "sans-serif", "font-size": 12 }, text);
+    };
+    const notes = [`image ${name} ${size.w}x${size.h}px`, place ? `data side: ${side}` : "no data.json loaded (showing raw image)"];
+    if (place) {
+      if (chosen.has("box")) add("rect", { x: rect.x, y: rect.y, width: rect.w, height: rect.h, fill: "none", stroke: "#ffdc00", "stroke-width": 1.5 });
+      const mid = place.middle && typeof place.middle === "object" && size.w && size.h ? [rect.x + place.middle.x * rect.w / size.w, rect.y + place.middle.y * rect.h / size.h] : null;
+      const center = mid || (place.center && readPoint(place.center)), origin = place.origin && readPoint(place.origin), top = place["tallest-point"] && readPoint(place["tallest-point"]);
+      if (chosen.has("center") && center) {
+        add("line", { x1: rect.x, y1: center[1], x2: rect.x + rect.w, y2: center[1], stroke: "#50c8ff" });
+        add("line", { x1: center[0] - 5, y1: center[1], x2: center[0] + 5, y2: center[1], stroke: "#ff2828", "stroke-width": 2 });
+        add("line", { x1: center[0], y1: center[1] - 5, x2: center[0], y2: center[1] + 5, stroke: "#ff2828", "stroke-width": 2 });
+        label(center[0] + 8, center[1] + 14, "middle point", "#ff2828");
+      }
+      if (chosen.has("origin") && origin) {
+        add("circle", { cx: origin[0], cy: origin[1], r: 4, fill: "#ff2828", stroke: "#000" });
+        label(origin[0] + 8, origin[1] + 4, "origin", "#ff2828");
+      }
+      if (chosen.has("highest") && top) {
+        add("circle", { cx: top[0], cy: top[1], r: 3.5, fill: "#28ff50", stroke: "#000" });
+        label(top[0] + 8, top[1] + 4, "highest point", "#28ff50");
+      }
+      if (chosen.has("hitbox") && place.hitbox && typeof place.hitbox === "object") {
+        const hit = place.hitbox;
+        add("rect", { x: rect.x + hit.x * rect.w, y: rect.y + hit.y * rect.h, width: hit.w * rect.w, height: hit.h * rect.h, fill: "rgba(255,77,255,.12)", stroke: "#ff4dff", "stroke-width": 1.5, "stroke-dasharray": "6 3" });
+      }
+      notes.push(`placement x=${place.x} y=${place.y} w=${place.w} h=${place.h}`, `origin ${place.origin || "-"} | middle ${place.middle ? `${place.middle.x},${place.middle.y} px` : place.center || "-"} | tallest ${place["tallest-point"] || "-"}`);
+      if (size.w) notes.push(`image scale vs data: ${(size.w / place.w).toFixed(3)}x`);
+    }
+    $("dbginfo").textContent = notes.join("\n");
+  }
+  async function loadDebugFiles(fileList) {
+    const files = [...fileList];
+    if (!files.length) return;
+    for (const entry of debugFiles.images.values()) URL.revokeObjectURL(entry.url);
+    debugFiles.images.clear();
+    debugFiles.data = null;
+    for (const file of files) {
+      if (/\.json$/i.test(file.name)) {
+        if (debugFiles.data && file.name !== "data.json") continue;
+        try { debugFiles.data = JSON.parse(await file.text()); } catch (error) { console.warn("[phd] debug data", error); }
+      } else if (/\.(png|apng|gif|webp)$/i.test(file.name)) {
+        debugFiles.images.set(file.name, { url: URL.createObjectURL(file) });
+      }
+    }
+    $("dbgimage").replaceChildren(...[...debugFiles.images.keys()].map((name) => Object.assign(document.createElement("option"), { value: name, textContent: name })));
+    $("dbgview").showModal();
+    renderDebugView();
+  }
+  $("dbgfiles").onchange = () => { loadDebugFiles($("dbgfiles").files); $("dbgfiles").value = ""; };
+  $("dbgdir").onchange = () => { loadDebugFiles($("dbgdir").files); $("dbgdir").value = ""; };
+  $("dbgclose").onclick = () => $("dbgview").close();
+  for (const id of ["dbgimage", "dbgside", "dbgstage"]) $(id).onchange = renderDebugView;
+  fieldBoxes.forEach((box) => box.addEventListener("change", () => $("dbgview").open && renderDebugView()));
   apply({ megaStyle, pauseColors: $("pause").checked });
   document.querySelectorAll("[name=style]").forEach((radio) => (radio.onchange = () => {
     storage.set({ megaStyle: radio.value });

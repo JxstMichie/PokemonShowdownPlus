@@ -14,6 +14,8 @@
   const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
   let megaStyle = cfg.megaStyle || "wobble", pauseColors = !!cfg.pauseColors;
   const ASSETS = script ? new URL("assets/", script.src).href : "assets/";
+  const TERA_ICONS = script ? new URL("../fx/terra-icons/", script.src).href : "fx/terra-icons/";
+  const TERA_TYPES = ["bug", "dark", "dragon", "electric", "fairy", "fighting", "fire", "flying", "ghost", "grass", "ground", "ice", "normal", "poison", "psychic", "rock", "steel", "water"];
   const SHEET_URL = ASSETS + "battle-sprites.png";
 
   const ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -81,6 +83,7 @@
     state.slim = !!state.slim;
     state.mega = !!state.mega;
     state.dynamax = !!state.dynamax;
+    state.tera = TERA_TYPES.includes(String(state.tera || "").toLowerCase()) ? String(state.tera).toLowerCase() : "";
     state.megaStyle = STYLES.includes(state.megaStyle) ? state.megaStyle : megaStyle;
     state.itemStyle = String(state.itemStyle ?? "");
     return state;
@@ -143,15 +146,17 @@
     return `<g data-status="${state.status}" aria-label="${statusLabels[state.status]}" style="animation:shield-status ${80 / 30}s linear infinite">${sprite(state.status, at.status.x, at.status.y, ...draw.status)}</g>`;
   }
 
+  const TERA_ICON_SIZE = 64;
   const ITEM = { size: 24, scale: 3.75, x: -270, y: 0 };
 
   /*
     We disable the items slot for megas and dynamax so it does not obscure the logo
   */
   function drawItem(state) {
-    if (!state.dynamax && !state.mega && !state.itemStyle) return "";
+    if (!state.dynamax && !state.mega && !state.tera && !state.itemStyle) return "";
     const half = (ITEM.size * ITEM.scale) / 2;
     if (state.dynamax) return `<image data-item="" href="${ASSETS}dynamax.png" x="${ITEM.x - half}" y="${ITEM.y - half}" width="${half * 2}" height="${half * 2}" style="image-rendering:pixelated"/>`;
+    if (state.tera) return `<image data-item="" href="${TERA_ICONS}tera-${state.tera}.png" x="${ITEM.x - TERA_ICON_SIZE / 2}" y="${ITEM.y - TERA_ICON_SIZE / 2}" width="${TERA_ICON_SIZE}" height="${TERA_ICON_SIZE}"/>`;
     if (state.mega) return `<image data-item="" class="glow" href="${ASSETS}mega.png" x="${ITEM.x - half}" y="${ITEM.y - half}" width="${half * 2}" height="${half * 2}" style="image-rendering:pixelated"/>`;
     return `<g data-item="" transform="translate(${ITEM.x - half} ${ITEM.y - half}) scale(${ITEM.scale})"><foreignObject width="${ITEM.size}" height="${ITEM.size}"><div style="width:${ITEM.size}px;height:${ITEM.size}px;image-rendering:pixelated;${escapeXML(state.itemStyle)}"></div></foreignObject></g>`;
   }

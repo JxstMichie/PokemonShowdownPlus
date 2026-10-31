@@ -92,7 +92,7 @@ async function start() {
     render(side);
   }
 
-  const saved = await storage.get(["megaStyle", "pauseColors", "showApngData", "apngFields", "hpStyle", "preview"]);
+  const saved = await storage.get(["megaStyle", "pauseColors", "showApngData", "apngFields", "hpStyle", "teraEffect", "teraCache", "teraCacheSize", "showCacheMenu", "preview"]);
   const preview = saved.preview;
   if (preview) {
     for (const side in sides) if (Array.isArray(preview.sides && preview.sides[side])) sides[side] = preview.sides[side].slice(0, 4);
@@ -107,6 +107,60 @@ async function start() {
     storage.set({ pauseColors: $("pause").checked });
     apply({ pauseColors: $("pause").checked });
   };
+  $("tera").checked = saved.teraEffect !== false;
+  $("tera").onchange = () => {
+    storage.set({ teraEffect: $("tera").checked });
+    apply({ teraEffect: $("tera").checked });
+  };
+  const clampCache = (value) => Math.max(6, Math.min(30, Math.round(Number(value)) || 12));
+  $("teracache").checked = saved.teraCache !== false;
+  $("teracachesize").value = clampCache(saved.teraCacheSize);
+  $("teracachesize").disabled = !$("teracache").checked;
+  $("teracache").onchange = () => {
+    $("teracachesize").disabled = !$("teracache").checked;
+    storage.set({ teraCache: $("teracache").checked });
+    apply({ teraCache: $("teracache").checked });
+  };
+  $("teracachesize").onchange = () => {
+    const teraCacheSize = clampCache($("teracachesize").value);
+    $("teracachesize").value = teraCacheSize;
+    storage.set({ teraCacheSize });
+    apply({ teraCacheSize });
+  };
+  const CACHE_SECTIONS = [{ id: "tera", title: "Terra cache" }];
+  const formatSize = (bytes) => {
+    const mb = bytes / 1048576;
+    return (mb >= 10 ? Math.round(mb) : Math.round(mb * 10) / 10) + "MB";
+  };
+  const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const renderCaches = async () => {
+    const shown = $("cachemenu").checked;
+    $("cachebox").hidden = !shown;
+    if (!shown) return;
+    const index = (await storage.get("cacheIndex")).cacheIndex || {};
+    $("caches").innerHTML = CACHE_SECTIONS.map((section) => {
+      const entries = Array.isArray(index[section.id]) ? index[section.id] : [];
+      const total = entries.reduce((sum, entry) => sum + (entry.bytes || 0), 0);
+      const rows = entries.map((entry) => `<li>${escapeHtml(entry.name)} ${formatSize(entry.bytes || 0)}</li>`).join("") || "<li>Empty</li>";
+      return `<div class="cachesection"><h3>${section.title} (${entries.length}, ${formatSize(total)}) <button data-clear="${section.id}"${entries.length ? "" : " disabled"}>Clear</button></h3><ul>${rows}</ul></div>`;
+    }).join("");
+  };
+  $("caches").onclick = async (event) => {
+    const section = event.target.dataset && event.target.dataset.clear;
+    if (!section) return;
+    const index = (await storage.get("cacheIndex")).cacheIndex || {};
+    const token = Date.now();
+    await storage.set({ cacheIndex: { ...index, [section]: [] }, teraCacheClear: token });
+    apply({ teraCacheClear: token });
+    renderCaches();
+  };
+  $("cachemenu").checked = !!saved.showCacheMenu;
+  $("cachemenu").onchange = () => {
+    storage.set({ showCacheMenu: $("cachemenu").checked });
+    renderCaches();
+  };
+  renderCaches();
+  if (typeof browser !== "undefined" && browser.storage && browser.storage.onChanged) browser.storage.onChanged.addListener((changes) => changes.cacheIndex && renderCaches());
   $("apngdata").checked = !!saved.showApngData;
   $("apngdata").onchange = () => {
     storage.set({ showApngData: $("apngdata").checked });

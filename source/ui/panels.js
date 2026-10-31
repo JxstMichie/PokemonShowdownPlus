@@ -233,6 +233,7 @@
       status: mon.fainted ? "fainted" : STATUS[mon.status] || "none",
       itemStyle: itemStyleOf(sprite, mon),
       dynamax: !!(mon.volatiles && mon.volatiles.dynamax),
+      tera: mon.terastallized || "",
       mega: !!(window.Dex && (s => s.isMega || s.isPrimal)(Dex.species.get(mon.speciesForme || "")))
     }, { animate: !isNew });
     arrange(sprite.scene);

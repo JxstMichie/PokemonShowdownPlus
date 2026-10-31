@@ -60,11 +60,11 @@
       if (sprite.__phdToken !== token || !el || !el[0].isConnected) return;
       sprite.__phdShown = token;
 
-      el.attr("src", `${url}#${token}-${Date.now()}`);
+      el.attr("src", `${teraSkin(sprite, url)}#${token}-${Date.now()}`);
       setTimeout(() => {
         if (sprite.__phdShown !== token || sprite.$el !== el) return;
         sprite.__phdShown = 0;
-        el.attr("src", sprite.sp.url);
+        el.attr("src", teraIdle(sprite));
       }, ms);
     };
     if (url in durations && decoded[url]) {
@@ -154,7 +154,10 @@
     B.runMinor = function (args) {
       const kind = args[0];
       let pending = null;
+      const scene = this.scene;
+      scene.__phdTeraPending = null;
       try {
+        if (kind === "-terastallize") scene.__phdTeraPending = this.getPokemon(args[1]);
         if (kind === "-boost" || kind === "-unboost" || kind === "-setboost") {
           const target = this.getPokemon(args[1]);
           const stat = args[2];
@@ -167,12 +170,12 @@
           if (target && target.sprite && change && !used) pending = { pokemon: target, type };
         }
       } catch (e) { console.warn("[phd]", e); }
-      const scene = this.scene;
       scene.__phdStat = pending;
       try {
         return runMinor.apply(this, arguments);
       } finally {
         scene.__phdStat = null;
+        scene.__phdTeraPending = null;
       }
     };
 
@@ -239,6 +242,8 @@
     return (rec && rec.hash) || "";
   }
   window.__phdHashOf = hashOf;
+  window.__phdList = list;
+  window.__phdActionUrl = actionUrl;
   window.__phdPlacementOf = placementOf;
 
   // Some sprites get blocked by HP bar so we move them a bit upward (only Player side as opponent's hp bar can't obscure their pokemon)
@@ -593,8 +598,8 @@
     return { left: box.left + content.x * box.width, top: box.top + content.y * box.height, width: content.w * box.width, height: content.h * box.height };
   }
 
-  const STAT_FX = { good: { url: FX_BASE + "stat-boost.apng", ratio: 640 / 768 }, bad: { url: FX_BASE + "stat-drop.apng", ratio: 640 / 768 } };
-  const STAT_SOUNDS = { good: FX_BASE + "stat-boost.wav", bad: FX_BASE + "stat-drop.wav", ability: FX_BASE + "ability-activate.wav" };
+  const STAT_FX = { good: { url: FX_BASE + "stats/stat-boost.apng", ratio: 640 / 768 }, bad: { url: FX_BASE + "stats/stat-drop.apng", ratio: 640 / 768 } };
+  const STAT_SOUNDS = { good: FX_BASE + "stats/stat-boost.wav", bad: FX_BASE + "stats/stat-drop.wav", ability: FX_BASE + "stats/ability-activate.wav", terra: FX_BASE + "terra-transform/terra-time.wav" };
   const soundBuffers = {};
   let audioContext = null;
   const contextOf = () => audioContext || (audioContext = new (window.AudioContext || window.webkitAudioContext)());
@@ -618,6 +623,7 @@
     source.buffer = buffer;
     source.connect(gain).connect(context.destination);
     source.start();
+    return source;
   }
   window.__phdPlaySound = playStatSound;
   const STAT_FX_GAP = 500;
@@ -666,6 +672,93 @@
       next();
     }).delay(STAT_FX_GAP);
     scene.waitFor($img);
+  }
+
+  const TERRA_URL = { front: FX_BASE + "terra-transform/terra.apng", back: FX_BASE + "terra-transform/terra-back.apng" };
+  const TERRA_REVEAL = 2100;
+  const TERRA_SHRINK_AT = 1000;
+  const TERRA_SHRINK = 250;
+  const TERRA_GROW = 200;
+  let terraData = null;
+  fetch(FX_BASE + "terra-transform/data.json").then((response) => response.json()).then((data) => { terraData = data; }).catch((e) => console.warn("[phd] terra data load failed", e));
+  for (const view in TERRA_URL) { preload(TERRA_URL[view]); getDuration(TERRA_URL[view]); }
+
+  function playTerraSound(scene, $img) {
+    const playing = playStatSound("terra");
+    const cut = () => !$img[0].isConnected || !scene.animating || scene.battle.seeking !== null;
+    const watch = setInterval(() => {
+      if (!cut()) return;
+      clearInterval(watch);
+      playing.then((source) => { if (source) try { source.stop(); } catch (e) {} });
+    }, 50);
+    playing.then((source) => { if (source) source.onended = () => clearInterval(watch); else clearInterval(watch); });
+  }
+
+  function terraReady(sprite) {
+    const view = sprite.isFrontSprite ? "front" : "back";
+    return Boolean(terraData && terraData[view] && sprite.$el && sprite.sp && placementOf(sprite.sp));
+  }
+
+  function spriteOrigin(scene, sprite) {
+    const place = placementOf(sprite.sp);
+    const box = scene.pos({ x: sprite.x, y: sprite.y, z: sprite.z }, sprite.sp);
+    const scale = place.w ? box.width / place.w : 1;
+    const own = place.origin && pointOf(place.origin);
+    const hasOwn = own && Number.isFinite(own[0]) && Number.isFinite(own[1]);
+    return {
+      scale,
+      ox: hasOwn ? box.left + (own[0] - place.x) * scale : box.left + box.width / 2,
+      oy: hasOwn ? box.top + (own[1] - place.y) * scale : box.top + box.height
+    };
+  }
+
+  function terraFrame(scene, sprite, view) {
+    const t = terraData[view];
+    const { scale, ox, oy } = spriteOrigin(scene, sprite);
+    const at = pointOf(t.origin);
+    return {
+      left: Math.round(ox + (t.x - at[0]) * scale),
+      top: Math.round(oy + (t.y - at[1]) * scale),
+      width: Math.round(t.w * scale),
+      height: Math.round(t.h * scale)
+    };
+  }
+
+  function playTerraFx(scene, sprite) {
+    const view = sprite.isFrontSprite ? "front" : "back";
+    const url = TERRA_URL[view];
+    const el = sprite.$el;
+    const ms = durations[url] || 4033;
+    const $img = $("<img>").css({ display: "none", position: "absolute", pointerEvents: "none" });
+    scene.$fx.append($img);
+    const release = () => {
+      if (!sprite.__phdTeraHold) return;
+      sprite.__phdTeraHold = false;
+      try { if (window.__phdTera) window.__phdTera.update(scene); } catch (e) { console.warn("[phd]", e); }
+    };
+    sprite.__phdTeraHold = true;
+    setTimeout(release, scene.timeOffset + TERRA_REVEAL + 1500);
+    const pivot = spriteOrigin(scene, sprite);
+    const hidden = { left: Math.round(pivot.ox), top: Math.round(pivot.oy), width: 0, height: 0, opacity: 0 };
+    const shown = scene.pos({ x: sprite.x, y: sprite.y, z: sprite.z, opacity: 1 }, sprite.sp);
+    el.delay(scene.timeOffset).queue(function (next) {
+      if (!(scene.animating && scene.battle.seeking === null)) {
+        $img.detach();
+        return next();
+      }
+      $img.attr("src", `${url}#${Date.now()}`).css({ display: "block", ...terraFrame(scene, sprite, view) });
+      playTerraSound(scene, $img);
+      next();
+    }).delay(TERRA_SHRINK_AT).animate(hidden, TERRA_SHRINK).delay(TERRA_REVEAL - TERRA_SHRINK_AT - TERRA_SHRINK).queue(function (next) {
+      release();
+      next();
+    }).animate(shown, TERRA_GROW);
+    $img.delay(scene.timeOffset).delay(ms).queue(function (next) {
+      $img.detach();
+      next();
+    });
+    scene.waitFor($img);
+    scene.waitFor(el);
   }
 
   function placeStatbars(scene) {
@@ -749,8 +842,14 @@
       });
     }
   }
+  const teraSkin = (sprite, url) => (window.__phdTera ? window.__phdTera.skin(sprite, url) : url);
+  const teraIdle = (sprite) => (window.__phdTera ? window.__phdTera.idle(sprite) : sprite.sp.url);
+
   const tooltipLoop = () => {
-    statbarScenes.forEach((scene) => { try { placeTooltips(scene); } catch (e) { console.warn("[phd]", e); } });
+    statbarScenes.forEach((scene) => {
+      try { placeTooltips(scene); } catch (e) { console.warn("[phd]", e); }
+      try { if (window.__phdTera) window.__phdTera.update(scene); } catch (e) { console.warn("[phd]", e); }
+    });
     requestAnimationFrame(tooltipLoop);
   };
   requestAnimationFrame(tooltipLoop);
@@ -837,8 +936,21 @@
       };
 
       const animTransform = PokemonSprite.prototype.animTransform;
-      PokemonSprite.prototype.animTransform = function (pokemon) {
+      PokemonSprite.prototype.animTransform = function (pokemon, useSpeciesAnim, isPermanent) {
         const before = this.sp;
+        const scene = this.scene;
+        if (scene.__phdTeraPending === pokemon && scene.animating && scene.battle.seeking === null && terraReady(this)) {
+          scene.__phdTeraPending = null;
+          let r;
+          scene.animating = false;
+          try { r = animTransform.call(this, pokemon, false, true); } finally { scene.animating = true; }
+          try {
+            adopt(this, before);
+            scene.updateSidebar(pokemon.side);
+            playTerraFx(scene, this);
+          } catch (e) { console.warn("[phd]", e); }
+          return r;
+        }
         try {
           const next = { sp: Dex.getSpriteData(pokemon, this.isFrontSprite, { gen: this.scene.gen, mod: this.scene.mod }) };
           hitboxOf(actionUrl(next, ""));
@@ -858,6 +970,30 @@
       };
     }
   }
+
+  function injectSettingsButton() {
+    const link = document.querySelector('.mainmenu-left a[href="view-tournaments-all"]');
+    const group = link && link.closest(".menugroup");
+    if (!group || group.querySelector(".phd-settings-link")) return;
+    const row = document.createElement("p");
+    const button = document.createElement("a");
+    button.className = "mainmenu4 mainmenu button phd-settings-link";
+    button.href = "#";
+    button.textContent = "Showdown+ Settings";
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      document.dispatchEvent(new CustomEvent("phd-open-settings"));
+    });
+    row.append(button);
+    group.append(row);
+  }
+  let menuQueued = false;
+  new MutationObserver(() => {
+    if (menuQueued) return;
+    menuQueued = true;
+    requestAnimationFrame(() => { menuQueued = false; injectSettingsButton(); });
+  }).observe(document.documentElement, { childList: true, subtree: true });
+  injectSettingsButton();
 
   console.info("[phd] page.js loaded (doubles layout)");
 

@@ -7,10 +7,10 @@ HERE = Path(__file__).resolve().parent.parent
 SOURCE = HERE / "source"
 DATA = HERE / "data"
 OUT = HERE / "dist" / "firefox" / "pokemon-showdown-hd.xpi"
-CODE = ["manifest.json", "config.js", "patch.js", "background.js", "loader.js", "page.js", "debug.js", "ui/component.js", "ui/ability.js", "ui/panels.js", "ui/panels.css", "ui/data.json", "ui/settings.html", "ui/settings.js"]
+CODE = ["manifest.json", "config.js", "patch.js", "background.js", "loader.js", "page.js", "tera-bake.js", "tera.js", "debug.js", "ui/component.js", "ui/ability.js", "ui/panels.js", "ui/panels.css", "ui/data.json", "ui/settings.html", "ui/settings.js"]
 JSON = ["doubles.json", "move.json", "sprites.txt", "render_metadata.json"]
 
-MINIFY = ["ui/component.js", "ui/panels.js"]
+MINIFY = ["ui/component.js", "ui/panels.js", "tera-bake.js", "tera.js"]
 
 
 def shipped(name):
@@ -32,8 +32,10 @@ with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as z:
     z.write(HERE / "assets" / "icon.png", "icon.png")
     for p in sorted((HERE / "assets" / "ui").glob("*")):
         z.write(p, f"ui/assets/{p.name}")
-    for p in sorted((HERE / "assets" / "fx").glob("*")):
-        z.write(p, f"fx/{p.name}")
+    fx = HERE / "assets" / "fx"
+    for p in sorted(fx.rglob("*")):
+        if p.is_file():
+            z.write(p, f"fx/{p.relative_to(fx).as_posix()}")
     for folder in ("bg", "bg_overlay"):
         for p in sorted((HERE / "assets" / folder).glob("*.png")):
             z.write(p, f"{folder}/{p.name}")

@@ -15,7 +15,7 @@
   let megaStyle = cfg.megaStyle || "wobble", pauseColors = !!cfg.pauseColors;
   const ASSETS = script ? new URL("assets/", script.src).href : "assets/";
   const TERA_ICONS = script ? new URL("../fx/terra-icons/", script.src).href : "fx/terra-icons/";
-  const TERA_TYPES = ["bug", "dark", "dragon", "electric", "fairy", "fighting", "fire", "flying", "ghost", "grass", "ground", "ice", "normal", "poison", "psychic", "rock", "steel", "water"];
+  const TERA_TYPES = ["bug", "dark", "dragon", "electric", "fairy", "fighting", "fire", "flying", "ghost", "grass", "ground", "ice", "normal", "poison", "psychic", "rock", "steel", "stellar", "water"];
   const SHEET_URL = ASSETS + "battle-sprites.png";
 
   const ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };

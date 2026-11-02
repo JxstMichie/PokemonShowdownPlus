@@ -9,10 +9,11 @@
 <h3 align="center"> Modernized Pokemon Showdown </h3>
 <p align="center">
   <a href="https://github.com/JxstMichie/PokemonShowdownPlus/releases/latest">
-  <img src="https://img.shields.io/github/v/release/JxstMichie/PokemonShowdownPlus?label=latest&color=7c3aed" alt="Latest Release"/>
-</a>
-  <img src="https://img.shields.io/badge/Firefox-FF7139?logo=firefoxbrowser&logoColor=white" alt="Get Pokémon Showdown Plus for Firefox"/>
-</a>
+    <img src="https://img.shields.io/github/v/release/JxstMichie/PokemonShowdownPlus?label=latest&color=7c3aed" alt="Latest Release"/>
+  </a>
+  <a href="https://addons.mozilla.org/en-US/firefox/addon/pokemon-showdown-plus/">
+    <img src="https://img.shields.io/badge/Firefox-FF7139?logo=firefoxbrowser&logoColor=white" alt="Get Pokémon Showdown Plus for Firefox"/>
+  </a>
 </p>
 
 ---

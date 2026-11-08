@@ -292,6 +292,18 @@
       }
       return result;
     };
+    const destroySprite = PokemonSprite.prototype.destroy;
+    PokemonSprite.prototype.destroy = function () {
+      try {
+        if (this.__phdChips) this.__phdChips.remove();
+        this.__phdChips = null;
+        if (this.__phdPanel && this.__phdPanel.__phdSprite === this) this.__phdPanel.__phdSprite = null;
+        this.__phdPanel = null;
+      } catch (error) {
+        console.warn("[phd-hp]", error);
+      }
+      return destroySprite.apply(this, arguments);
+    };
     installAbility();
     return true;
   }

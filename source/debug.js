@@ -7,9 +7,19 @@
   let enabled = !!cfg.showApngData, announced = false;
   let fields = new Set(Array.isArray(cfg.apngFields) ? cfg.apngFields : FIELDS);
 
+  let running = false;
+  const start = () => {
+    if (running) return;
+    running = true;
+    requestAnimationFrame(tick);
+  };
+
   document.addEventListener("phd-settings", (event) => {
     const detail = JSON.parse(event.detail);
-    if (typeof detail.showApngData === "boolean") enabled = detail.showApngData;
+    if (typeof detail.showApngData === "boolean") {
+      enabled = detail.showApngData;
+      if (enabled) start();
+    }
     if (Array.isArray(detail.apngFields)) fields = new Set(detail.apngFields);
   });
 
@@ -92,20 +102,21 @@
   }
 
   function tick() {
+    if (!enabled) {
+      clear();
+      running = false;
+      return;
+    }
     try {
-      if (!enabled) {
-        if (overlays.size) clear();
-      } else {
-        const live = new Set(activeSprites());
-        if (!announced && live.size) {
-          announced = true;
-          console.info("[phd] apng data overlay on", live.size, "sprites");
-        }
-        for (const [sprite, svg] of overlays) if (!live.has(sprite)) { svg.remove(); overlays.delete(sprite); }
-        live.forEach(draw);
+      const live = new Set(activeSprites());
+      if (!announced && live.size) {
+        announced = true;
+        console.info("[phd] apng data overlay on", live.size, "sprites");
       }
+      for (const [sprite, svg] of overlays) if (!live.has(sprite)) { svg.remove(); overlays.delete(sprite); }
+      live.forEach(draw);
     } catch (error) { console.warn("[phd] apng data", error); }
     requestAnimationFrame(tick);
   }
-  requestAnimationFrame(tick);
+  if (enabled) start();
 })();

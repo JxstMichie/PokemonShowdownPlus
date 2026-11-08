@@ -29,7 +29,7 @@
     fetch(runtime.getURL("sprites.txt")).then((response) => response.text()),
     fetch(runtime.getURL("render_metadata.json")).then((response) => response.json()),
     fetch(runtime.getURL("doubles.json")).then((response) => response.json()).then((data) => ({ doubles: data.doubles || null, hpBars: data.hpBars || null })).catch(() => null),
-    fetch(runtime.getURL("move.json")).then((response) => response.json()).catch(() => null), //Might have some errors, should be a temp solution
+    fetch(runtime.getURL("move.json")).then((response) => response.json()).catch(() => null),
     fetch(runtime.getURL("ui/data.json")).then((response) => response.json()),
     browser.storage.local.get(null).catch(() => ({})),
     fetch(runtime.getURL("fx/terra-transform/terra_texture.png")).then((response) => response.blob()).then((blob) => new Promise((resolve, reject) => {
@@ -40,8 +40,8 @@
     })).catch(() => null),
     fetch(runtime.getURL("tera-bake.js")).then((response) => response.text()).catch(() => null),
   ]);
-  const { tags: baselineTags, dropped, added, removals } = phdApplyOverwrites(placements, settings || {});
-  if (dropped.length || removals.length || Object.keys(added).length) runtime.sendMessage({ type: "phd-sync", dropped, added, removals }).catch(() => {});
+  const { tags: baselineTags, dropped, added } = phdApplyOverwrites(placements, settings || {});
+  if (dropped.length || Object.keys(added).length) runtime.sendMessage({ type: "phd-sync", dropped, added }).catch(() => {});
 
   const send = (name, detail) => document.dispatchEvent(new CustomEvent(name, { detail: JSON.stringify(detail) }));
 
@@ -88,7 +88,7 @@
   const configs = {
     "ui/component.js": { ui, megaStyle: settings && settings.megaStyle, pauseColors: settings && settings.pauseColors },
     "ui/panels.js": { hpStyle: settings && settings.hpStyle },
-    "page.js": { size: 192, list, placements, doubles: layout && layout.doubles, hpBars: layout && layout.hpBars, lunge: moves && moves.lunge || [] },
+    "page.js": { size: 192, localSource: phdLocalFrom(settings), list, placements, doubles: layout && layout.doubles, hpBars: layout && layout.hpBars, lunge: moves && moves.lunge || [] },
     "tera.js": { teraTexture, bakeSource, teraEffect: !settings || settings.teraEffect !== false, teraCache: !settings || settings.teraCache !== false, teraCacheSize: settings && settings.teraCacheSize, teraCacheClear: settings && settings.teraCacheClear },
     "debug.js": { showApngData: settings && settings.showApngData, apngFields: settings && settings.apngFields }
   };

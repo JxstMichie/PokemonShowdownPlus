@@ -138,14 +138,49 @@
     return { key: `${folder.name}-${type.toLowerCase()}-back${match[2] ? "-shiny" : ""}`, name, hash: hashOf(sprite.sp) };
   }
 
+  const TERA_IDLE_FORMS = 3;
+  const teraEvicted = new Set();
+
+  function liveTeraKeys() {
+    const keys = new Set();
+    for (const scene of window.__phdScenes || []) {
+      const battle = scene.battle;
+      if (!battle) continue;
+      for (const side of [battle.nearSide, battle.farSide]) {
+        for (const pokemon of (side && side.active) || []) {
+          const sprite = pokemon && pokemon.sprite;
+          const type = teraTypeOf(sprite);
+          if (!type || !sprite.sp) continue;
+          for (const kind of TERA_KINDS) {
+            const url = actionUrl(sprite, kind);
+            if (url) keys.add(`${type}|${url}`);
+          }
+        }
+      }
+    }
+    return keys;
+  }
+
+  function evictTera() {
+    const live = liveTeraKeys();
+    const idle = Object.keys(teraBakes).filter((key) => !live.has(key) && teraBakes[key].url);
+    idle.sort((p, q) => (teraBakes[q].used || 0) - (teraBakes[p].used || 0));
+    for (const key of idle.slice(TERA_IDLE_FORMS * TERA_KINDS.length)) {
+      URL.revokeObjectURL(teraBakes[key].url);
+      delete teraBakes[key];
+      teraEvicted.add(key);
+    }
+  }
+
   function requestTera(url, type) {
     const key = `${type}|${url}`;
     if (!teraBakes[key]) {
-      const entry = (teraBakes[key] = { url: null, blob: null, promise: null });
+      const entry = (teraBakes[key] = { url: null, blob: null, promise: null, used: Date.now() });
       entry.promise = bakeTera(url, type)
         .then((blob) => {
           entry.blob = blob;
           entry.url = URL.createObjectURL(blob);
+          evictTera();
         })
         .catch((e) => console.warn("[phd] tera bake failed", url, e));
     }
@@ -159,8 +194,9 @@
     for (const kind of kinds) {
       const key = `${type}|${urls[kind]}`;
       if (teraBakes[key] && teraBakes[key].url) continue;
-      teraBakes[key] = { url: URL.createObjectURL(record.files[kind]), blob: record.files[kind], promise: Promise.resolve() };
+      teraBakes[key] = { url: URL.createObjectURL(record.files[kind]), blob: record.files[kind], promise: Promise.resolve(), used: Date.now() };
     }
+    evictTera();
     const bytes = kinds.reduce((total, kind) => total + record.files[kind].size, 0);
     await teraTx("readwrite", (forms, meta) => meta.put({ key: form.key, time: Date.now(), name: form.name, bytes }));
     publishTeraIndex().catch(() => {});
@@ -231,10 +267,14 @@
   }
   function teraSkin(sprite, url) {
     const type = url && !sprite.__phdTeraHold && teraTypeOf(sprite);
-    return (type && teraBakes[`${type}|${url}`] && teraBakes[`${type}|${url}`].url) || url;
+    const bake = type && teraBakes[`${type}|${url}`];
+    if (bake) bake.used = Date.now();
+    return (bake && bake.url) || url;
   }
   function teraIdle(sprite) {
-    return teraSkin(sprite, actionUrl(sprite, "")) !== actionUrl(sprite, "") ? teraSkin(sprite, actionUrl(sprite, "")) : sprite.sp.url;
+    const base = actionUrl(sprite, "");
+    const skin = teraSkin(sprite, base);
+    return skin !== base ? skin : sprite.sp.url;
   }
 
   function updateTera(sprite) {
@@ -247,13 +287,16 @@
       sprite.__phdTeraIdle = null;
       return;
     }
+    const base = actionUrl(sprite, "");
+    const baseKey = `${type}|${base}`;
     const state = sprite.__phdTeraState;
-    if (!state || state.type !== type || state.url !== sprite.sp.url) {
+    if (!state || state.type !== type || state.url !== sprite.sp.url || teraEvicted.has(baseKey)) {
+      teraEvicted.delete(baseKey);
       sprite.__phdTeraState = { type, url: sprite.sp.url };
       prepareTera(sprite, type);
     }
     if (sprite.__phdTeraHold) return;
-    const idle = teraSkin(sprite, actionUrl(sprite, ""));
+    const idle = teraSkin(sprite, base);
     if (idle && idle.startsWith("blob:") && current === sprite.sp.url) {
       el.setAttribute("src", idle);
       sprite.__phdTeraIdle = idle;
@@ -270,5 +313,10 @@
     }
   }
 
-  window.__phdTera = { skin: teraSkin, idle: teraIdle, update: updateTeras };
+  window.__phdTera = {
+    skin: teraSkin,
+    idle: teraIdle,
+    update: updateTeras,
+    evict: evictTera
+  };
 })();

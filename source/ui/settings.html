@@ -27,6 +27,11 @@
   .slot label { margin: 0; }
   .tools { display: flex; gap: 14px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
   .tools label { margin: 0; }
+  dialog#dbgview { width: min(1100px, 94vw); max-height: 92vh; overflow: auto; border-radius: 8px; border: 1px solid #888; padding: 12px; background: #e8eef0; color: #111; }
+  body.dark dialog#dbgview { background: #222; color: #fff; }
+  dialog#dbgview .bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  dialog#dbgview svg { width: 100%; height: auto; background: repeating-conic-gradient(#8884 0% 25%, transparent 0% 50%) 0 0 / 20px 20px; border-radius: 6px; }
+  dialog#dbgview pre { margin: 6px 0 0; font-size: 12px; white-space: pre-wrap; }
 </style>
 <div class="page">
   <div class="left">
@@ -50,6 +55,12 @@
       <small>Recommended for lower-end computers as baking the tera forms is expensive, caching them effectively means we store them for re-use. Only back sprites are cached, and shiny forms count separately.</small>
     </div>
     <div class="card">
+      <h2>Sprite source</h2>
+      <label><input type="checkbox" id="localon"> Use local ani folder</label>
+      <label>Server URL <input id="localurl" value="http://localhost:8765"></label>
+      <small>Run <code>python3 scripts/serve-ani.py</code> in the project folder to serve the ani folder, tick the box, then reload Showdown. Untick it to go back to GitHub.</small>
+    </div>
+    <div class="card">
       <h2>Debug</h2>
       <label><input type="checkbox" id="cachemenu"> Show cache menu</label>
       <label><input type="checkbox" id="apngdata"> Show apng data</label>
@@ -62,6 +73,8 @@
         <label><input type="checkbox" value="hash"> Hash</label>
         <label><input type="checkbox" value="animation"> Animation name</label>
       </fieldset>
+      <label>Load animation files <input type="file" id="dbgfiles" multiple accept=".png,.apng,.gif,.webp,.json"></label>
+      <label>Load animation folder <input type="file" id="dbgdir" webkitdirectory></label>
     </div>
     <div class="card" id="cachebox" hidden>
       <h2>Cache</h2>
@@ -87,3 +100,14 @@
   </div>
 </div>
 <script src="settings.js"></script>
+<dialog id="dbgview">
+  <div class="bar">
+    <strong>Animation debug</strong>
+    <select id="dbgimage"></select>
+    <select id="dbgside"><option value="auto">auto side</option><option value="front">front</option><option value="back">back</option></select>
+    <label><input type="checkbox" id="dbgstage" checked> Show 640x360 stage</label>
+    <button id="dbgclose">Close</button>
+  </div>
+  <svg id="dbgsvg"></svg>
+  <pre id="dbginfo"></pre>
+</dialog>

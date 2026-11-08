@@ -67,10 +67,10 @@ def compile_sprites(names):
     for gen, folder, name in folders:
         have = {f.name for f in folder.glob("*.png")}
         mask = sum(1 << (k * 4 + v)
-                   for k, kind in enumerate(("", "tap_", "physical_"))
+                   for k, kind in enumerate(("", "tap_", "physical_", "special_"))
                    for v, view in enumerate(("", "-back", "-shiny", "-back-shiny"))
                    if f"{kind}{name}{view}.png" in have)
-        gens.setdefault(gen, []).append(f"{folder.name}:{mask:03x}")
+        gens.setdefault(gen, []).append(f"{folder.name}:{mask:04x}")
     sprites = "".join(f"{g}: {' '.join(items)}\n" for g, items in gens.items())
     sprites += "aliases: " + " ".join(f"{k}={v}" for k, v in sorted(aliases.items())) + "\n"
     return known, sprites

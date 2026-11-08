@@ -92,7 +92,7 @@ async function start() {
     render(side);
   }
 
-  const saved = await storage.get(["megaStyle", "pauseColors", "showApngData", "apngFields", "hpStyle", "teraEffect", "teraCache", "teraCacheSize", "showCacheMenu", "preview"]);
+  const saved = await storage.get(["megaStyle", "pauseColors", "showApngData", "apngFields", "hpStyle", "teraEffect", "teraCache", "teraCacheSize", "showCacheMenu", "preview", "localSourceOn", "localSourceUrl"]);
   const preview = saved.preview;
   if (preview) {
     for (const side in sides) if (Array.isArray(preview.sides && preview.sides[side])) sides[side] = preview.sides[side].slice(0, 4);
@@ -127,6 +127,35 @@ async function start() {
     storage.set({ teraCacheSize });
     apply({ teraCacheSize });
   };
+  $("localon").checked = !!saved.localSourceOn;
+  $("localurl").value = saved.localSourceUrl || "http://localhost:8765";
+  const LOCAL_HOSTS = ["localhost", "127.0.0.1"];
+  const localOrigin = (value) => {
+    try {
+      const url = new URL(value);
+      return url.protocol === "http:" && LOCAL_HOSTS.includes(url.hostname) ? `http://${url.hostname}/*` : null;
+    } catch (error) {
+      return null;
+    }
+  };
+  const canAsk = typeof browser !== "undefined" && browser.permissions;
+  const saveLocal = async () => {
+    const url = $("localurl").value.trim();
+    let on = $("localon").checked;
+    const origin = localOrigin(url);
+    if (on && (!origin || (canAsk && !(await browser.permissions.request({ origins: [origin] }))))) {
+      on = false;
+      $("localon").checked = false;
+    }
+    await storage.set({ localSourceOn: on, localSourceUrl: url });
+    if (!on && canAsk) {
+      const previous = localOrigin(saved.localSourceUrl || "");
+      if (previous) browser.permissions.remove({ origins: [previous] }).catch(() => {});
+    }
+    saved.localSourceUrl = url;
+  };
+  $("localon").onchange = saveLocal;
+  $("localurl").onchange = saveLocal;
   const CACHE_SECTIONS = [{ id: "tera", title: "Terra cache" }];
   const formatSize = (bytes) => {
     const mb = bytes / 1048576;
@@ -227,7 +256,7 @@ async function start() {
     if (place) {
       if (chosen.has("box")) add("rect", { x: rect.x, y: rect.y, width: rect.w, height: rect.h, fill: "none", stroke: "#ffdc00", "stroke-width": 1.5 });
       const mid = place.middle && typeof place.middle === "object" && size.w && size.h ? [rect.x + place.middle.x * rect.w / size.w, rect.y + place.middle.y * rect.h / size.h] : null;
-      const center = mid || (place.center && readPoint(place.center)), origin = place.origin && readPoint(place.origin), top = place["tallest-point"] && readPoint(place["tallest-point"]);
+      const center = mid || (typeof place.middle === "string" && readPoint(place.middle)) || (place.center && readPoint(place.center)), origin = place.origin && readPoint(place.origin), top = place["tallest-point"] && readPoint(place["tallest-point"]);
       if (chosen.has("center") && center) {
         add("line", { x1: rect.x, y1: center[1], x2: rect.x + rect.w, y2: center[1], stroke: "#50c8ff" });
         add("line", { x1: center[0] - 5, y1: center[1], x2: center[0] + 5, y2: center[1], stroke: "#ff2828", "stroke-width": 2 });
@@ -246,7 +275,7 @@ async function start() {
         const hit = place.hitbox;
         add("rect", { x: rect.x + hit.x * rect.w, y: rect.y + hit.y * rect.h, width: hit.w * rect.w, height: hit.h * rect.h, fill: "rgba(255,77,255,.12)", stroke: "#ff4dff", "stroke-width": 1.5, "stroke-dasharray": "6 3" });
       }
-      notes.push(`placement x=${place.x} y=${place.y} w=${place.w} h=${place.h}`, `origin ${place.origin || "-"} | middle ${place.middle ? `${place.middle.x},${place.middle.y} px` : place.center || "-"} | tallest ${place["tallest-point"] || "-"}`);
+      notes.push(`placement x=${place.x} y=${place.y} w=${place.w} h=${place.h}`, `origin ${place.origin || "-"} | middle ${place.middle ? (typeof place.middle === "object" ? `${place.middle.x},${place.middle.y} px` : place.middle) : place.center || "-"} | tallest ${place["tallest-point"] || "-"}`);
       if (size.w) notes.push(`image scale vs data: ${(size.w / place.w).toFixed(3)}x`);
     }
     $("dbginfo").textContent = notes.join("\n");

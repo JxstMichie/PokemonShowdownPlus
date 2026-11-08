@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "Showdown+",
   "description": "Implements HD Sprites of Pokemon for Showdown",
-  "version": "1.3.1",
+  "version": "1.4",
   "browser_specific_settings": {
     "gecko": {
       "id": "PokemonShowdownHD@NathanMichael",

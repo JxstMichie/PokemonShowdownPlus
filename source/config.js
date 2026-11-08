@@ -7,9 +7,12 @@ const PHD_SETS = {
   "ani-back-shiny": "-back-shiny"
 };
 const PHD_VIEWS = ["", "-back", "-shiny", "-back-shiny"];
-const PHD_KINDS = ["", "tap", "physical"];
+const PHD_KINDS = ["", "tap", "physical", "special"];
 
-const phdUrl = (path) => PHD_RAW + path.replace("/", "/main/");
+let PHD_LOCAL = "";
+const phdSetLocal = (base) => { PHD_LOCAL = base ? String(base).trim().replace(/\/+$/, "") : ""; };
+const phdLocalFrom = (stored) => (stored && stored.localSourceOn === true && stored.localSourceUrl ? stored.localSourceUrl : "");
+const phdUrl = (path) => (PHD_LOCAL ? `${PHD_LOCAL}/gen${path}` : PHD_RAW + path.replace("/", "/main/"));
 
 function phdParseList(text) {
   const folders = Object.create(null), aliases = Object.create(null);
@@ -53,26 +56,12 @@ function phdSpriteUrl(list, name, kind, suffix) {
 const phdRedirectUrl = (list, set, species) => (set in PHD_SETS ? phdSpriteUrl(list, species, "", PHD_SETS[set]) : null);
 
 const PHD_OVERWRITE = "meta-data.overwrite.json";
-const PHD_FRAGMENT = "phdMeta:";
 
 function phdApplyOverwrites(placements, stored) {
   const tags = {};
   for (const name of Object.keys(placements)) tags[name] = placements[name].hash || "";
   const current = stored[PHD_OVERWRITE] || {};
   const found = { ...current };
-  const removals = [];
-  const legacy = stored.phdPatches || {};
-  for (const name of Object.keys(legacy)) {
-    const patch = legacy[name];
-    if (!(name in found) && patch && patch.entry) found[name] = { ...patch.entry, base: patch.base };
-  }
-  for (const key of Object.keys(stored)) {
-    if (!key.startsWith(PHD_FRAGMENT)) continue;
-    removals.push(key);
-    const name = key.slice(PHD_FRAGMENT.length);
-    if (!(name in found) && stored[key] && stored[key].base !== undefined) found[name] = stored[key];
-  }
-  if (stored.phdPatches) removals.push("phdPatches");
   const overwrite = {};
   for (const name of Object.keys(found)) {
     const entry = found[name];
@@ -84,5 +73,5 @@ function phdApplyOverwrites(placements, stored) {
   const dropped = Object.keys(current).filter((name) => !(name in overwrite));
   const fresh = {};
   for (const name of Object.keys(overwrite)) if (!(name in current)) fresh[name] = overwrite[name];
-  return { tags, dropped, added: fresh, removals };
+  return { tags, dropped, added: fresh };
 }

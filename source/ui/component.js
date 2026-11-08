@@ -187,6 +187,7 @@
       this._state = normalize({});
       this._shownHP = this._state.hp;
       this._frame = 0;
+      this._json = JSON.stringify(this._state);
       if (this.attachShadow) this.attachShadow({ mode: "open" });
     }
 
@@ -247,10 +248,12 @@
       const reducedMotion = global.matchMedia && global.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const animate = options.animate !== false && duration > 0 && !reducedMotion && this.isConnected && from !== next.hp;
 
-      if (!this._frame && this._shownHP === next.hp && JSON.stringify(next) === JSON.stringify(this._state)) return;
+      const json = JSON.stringify(next);
+      if (!this._frame && this._shownHP === next.hp && json === this._json) return;
 
       this._stop();
       this._state = next;
+      this._json = json;
       this._draw(animate ? from : next.hp);
       if (!animate) return;
 

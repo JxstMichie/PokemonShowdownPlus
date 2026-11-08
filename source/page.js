@@ -1,5 +1,6 @@
 (() => {
   const cfg = JSON.parse(document.currentScript.dataset.cfg);
+  phdSetLocal(cfg.localSource);
   const FX_BASE = new URL("fx/", document.currentScript.src).href;
   const list = phdParseList(cfg.list);
 
@@ -18,28 +19,82 @@
   const getDuration = (url) => {
     if (url in durations) return Promise.resolve(durations[url]);
     return new Promise((resolve) => {
-      (pending[url] = pending[url] || []).push(resolve);
+      if (pending[url]) { pending[url].push(resolve); return; }
+      pending[url] = [resolve];
       document.dispatchEvent(new CustomEvent("phd-duration-request", { detail: url }));
     });
   };
 
   const loaded = {};
   const decoded = {};
+  const loadedImages = {};
   function preload(url) {
     if (!url) return Promise.resolve();
     if (!loaded[url]) {
       const img = new Image();
+      loadedImages[url] = img;
       img.src = url;
       loaded[url] = img.decode().catch(() => {}).then(() => { decoded[url] = true; return img; });
     }
     return loaded[url];
   }
 
+  //frees the saved copy of a sprite so the memory can be used again
+  function dropPreloaded(url) {
+    if (!loadedImages[url]) return;
+    loadedImages[url].src = "";
+    delete loadedImages[url];
+    delete loaded[url];
+    delete decoded[url];
+  }
+
+  //wait a little after an effect ends before freeing it
+  const FX_RELEASE_DELAY = 1500;
+  //if an effect never ends free it anyway after this long
+  const FX_HOLD_MAX = 60000;
+  //counts how many effects are using each image right now
+  const fxUsers = {};
+  //loads an effect only when it is needed and gives back a function to free it later
+  function fxHold(url) {
+    fxUsers[url] = (fxUsers[url] || 0) + 1;
+    preload(url);
+    let done = false;
+    const release = () => {
+      if (done) return;
+      done = true;
+      setTimeout(() => {
+        if (--fxUsers[url] > 0) return;
+        delete fxUsers[url];
+        dropPreloaded(url);
+      }, FX_RELEASE_DELAY);
+    };
+    setTimeout(release, FX_HOLD_MAX);
+    return release;
+  }
+
+  function evictPreloaded() {
+    //effects still playing must stay loaded
+    const keep = new Set(Object.keys(fxUsers));
+    document.querySelectorAll("img").forEach((el) => {
+      const src = el.getAttribute("src");
+      if (src) keep.add(src.split("#")[0]);
+    });
+    for (const url of Object.keys(loadedImages)) {
+      if (keep.has(url)) continue;
+      dropPreloaded(url);
+    }
+  }
+
   const PSHOWDOWN_SPRITE_URL = /\/sprites\/ani(-back)?(-shiny)?\/([a-z0-9-]+)\.gif/;
 
   function actionUrl(sprite, kind) {
-    const m = PSHOWDOWN_SPRITE_URL.exec((sprite.sp && sprite.sp.url) || "");
-    return m && phdSpriteUrl(list, m[3], kind, (m[1] || "") + (m[2] || ""));
+    const sp = sprite.sp;
+    if (!sp) return null;
+    let cache = sp.__phdActions;
+    if (!cache || cache.url !== sp.url) cache = sp.__phdActions = { url: sp.url, kinds: {} };
+    if (kind in cache.kinds) return cache.kinds[kind];
+    const m = PSHOWDOWN_SPRITE_URL.exec(sp.url || "");
+    return (cache.kinds[kind] = m && phdSpriteUrl(list, m[3], kind, (m[1] || "") + (m[2] || "")));
   }
 
   function warm(sprite) {
@@ -86,9 +141,11 @@
   }
 
   const spriteNames = [...Object.keys(list.folders), ...Object.keys(list.aliases)];
+  let patchedTable = null;
   function patchSizes() {
     const table = window.BattlePokemonSprites;
-    if (!table) return;
+    if (!table || table === patchedTable) return;
+    patchedTable = table;
     for (const name of spriteNames) {
       const folder = phdLookup(list, name);
       const key = name.replace(/-/g, "");
@@ -155,9 +212,11 @@
       const kind = args[0];
       let pending = null;
       const scene = this.scene;
-      scene.__phdTeraPending = null;
+      scene.__phdMorph = null;
       try {
-        if (kind === "-terastallize") scene.__phdTeraPending = this.getPokemon(args[1]);
+        if (kind === "-terastallize") scene.__phdMorph = { kind: "terra", pokemon: this.getPokemon(args[1]) };
+        else if (kind === "detailschange" && arguments[2] && arguments[2][0] === "-mega") scene.__phdMorph = { kind: "mega", pokemon: this.getPokemon(args[1]) };
+        else if (kind === "detailschange" && /^Zygarde-Complete\b/.test(args[2] || "")) scene.__phdMorph = { kind: "zygarde", pokemon: this.getPokemon(args[1]) };
         if (kind === "-boost" || kind === "-unboost" || kind === "-setboost") {
           const target = this.getPokemon(args[1]);
           const stat = args[2];
@@ -175,7 +234,7 @@
         return runMinor.apply(this, arguments);
       } finally {
         scene.__phdStat = null;
-        scene.__phdTeraPending = null;
+        scene.__phdMorph = null;
       }
     };
 
@@ -229,11 +288,17 @@
     };
   }
 
+  let placementVersion = 0;
   function placementOf(sp) {
-    const m = PSHOWDOWN_SPRITE_URL.exec((sp && sp.url) || "");
+    if (!sp) return null;
+    const cached = sp.__phdPlace;
+    if (cached && cached.url === sp.url && cached.version === placementVersion) return cached.value;
+    const m = PSHOWDOWN_SPRITE_URL.exec(sp.url || "");
     const folder = m && phdFind(list, m[3]);
     const rec = folder && cfg.placements[folder.name];
-    return rec && rec[m[1] ? "back" : "front"] || null;
+    const value = rec && rec[m[1] ? "back" : "front"] || null;
+    sp.__phdPlace = { url: sp.url, version: placementVersion, value };
+    return value;
   }
   function hashOf(sp) {
     const m = PSHOWDOWN_SPRITE_URL.exec((sp && sp.url) || "");
@@ -255,15 +320,10 @@
 
   const STAGE_WIDTH = 640;
   const ICON_SCALE = 2, ICON_GAP = 10, ICON_W = 40, ICON_H = 30;
-  const ICON_LAYOUT = "half", ICON_COLUMNS = 3, ICON_ROW_GAP = 16, ICON_STACK = "center", STAGE_HEIGHT = 360;
+  const ICON_ROW_GAP = 16, STAGE_HEIGHT = 360;
 
-  // TODO: Custom battle preview screen
-  // I can't figure out how to make regular team preview look good, it looks terrible
   function iconRowSizes(count) {
-    if (ICON_LAYOUT === "half") return [Math.ceil(count / 2), Math.floor(count / 2)].filter((size) => size > 0);
-    const sizes = [];
-    for (let left = count; left > 0; left -= ICON_COLUMNS) sizes.push(Math.min(ICON_COLUMNS, left));
-    return sizes;
+    return [Math.ceil(count / 2), Math.floor(count / 2)].filter((size) => size > 0);
   }
 
   function iconPreview(scene) {
@@ -285,7 +345,6 @@
       const rows = rowSizes.length;
       const pitch = h + ICON_ROW_GAP;
       const anchor = STAGE_HEIGHT * (spriteIndex === 0 ? 0.75 : 0.25);
-      const inward = spriteIndex === 0 ? -1 : 1;
       imgs.forEach((img, i) => {
         const pokemon = side.pokemon[i];
         let row = 0;
@@ -297,10 +356,7 @@
         const inRow = rowSizes[row];
         const rowWidth = inRow * w + (inRow - 1) * ICON_GAP;
         const left = Math.round(STAGE_WIDTH / 2 - rowWidth / 2 + column * (w + ICON_GAP));
-        let center = anchor;
-        if (ICON_STACK === "center") center = anchor + (row - (rows - 1) / 2) * pitch;
-        else if (ICON_STACK === "inward") center = anchor + inward * row * pitch;
-        else center = anchor - inward * row * pitch;
+        const center = anchor + (row - (rows - 1) / 2) * pitch;
         const top = Math.round(center - h / 2);
         const icon = document.createElement("span");
         icon.setAttribute("style", `${Dex.getPokemonIcon(pokemon, !!spriteIndex)};position:absolute;display:block;width:${ICON_W}px;height:${ICON_H}px;left:${left}px;top:${top}px;transform:scale(${ICON_SCALE});transform-origin:0 0;image-rendering:pixelated`);
@@ -403,6 +459,7 @@
     if (entry) {
       iconFallback.delete(name);
       cfg.placements[name] = entry;
+      placementVersion++;
       console.info(`[phd] patched ${name} from data.json ${entry.hash}`);
     }
     const waiting = patchWaiters[name] || [];
@@ -539,24 +596,35 @@
     return { x: (box[0] - view.x) / view.w, y: (box[1] - view.y) / view.h, w: (box[2] - box[0]) / view.w, h: (box[3] - box[1]) / view.h };
   }
 
+  const SCAN_SIZE = 128;
+  let scanCanvas = null;
+  let scanContext = null;
+
   function scanHitbox(bitmap) {
-    const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    context.drawImage(bitmap, 0, 0);
-    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
-    let minX = canvas.width, minY = canvas.height, maxX = -1, maxY = -1;
-    for (let y = 0; y < canvas.height; y++) {
-      for (let x = 0; x < canvas.width; x++) {
-        if (data[(y * canvas.width + x) * 4 + 3] <= 16) continue;
+    if (!scanCanvas) {
+      scanCanvas = document.createElement("canvas");
+      scanContext = scanCanvas.getContext("2d", { willReadFrequently: true });
+    }
+    const ratio = Math.min(1, SCAN_SIZE / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * ratio));
+    const height = Math.max(1, Math.round(bitmap.height * ratio));
+    scanCanvas.width = width;
+    scanCanvas.height = height;
+    scanContext.drawImage(bitmap, 0, 0, width, height);
+    const { data } = scanContext.getImageData(0, 0, width, height);
+    scanCanvas.width = 1;
+    scanCanvas.height = 1;
+    let minX = width, minY = height, maxX = -1, maxY = -1;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (data[(y * width + x) * 4 + 3] <= 16) continue;
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
         if (y > maxY) maxY = y;
       }
     }
-    return maxX >= 0 ? { x: minX / canvas.width, y: minY / canvas.height, w: (maxX + 1 - minX) / canvas.width, h: (maxY + 1 - minY) / canvas.height } : null;
+    return maxX >= 0 ? { x: minX / width, y: minY / height, w: (maxX + 1 - minX) / width, h: (maxY + 1 - minY) / height } : null;
   }
 
   function hitboxOf(url) {
@@ -599,7 +667,7 @@
   }
 
   const STAT_FX = { good: { url: FX_BASE + "stats/stat-boost.apng", ratio: 640 / 768 }, bad: { url: FX_BASE + "stats/stat-drop.apng", ratio: 640 / 768 } };
-  const STAT_SOUNDS = { good: FX_BASE + "stats/stat-boost.wav", bad: FX_BASE + "stats/stat-drop.wav", ability: FX_BASE + "stats/ability-activate.wav", terra: FX_BASE + "terra-transform/terra-time.wav" };
+  const STAT_SOUNDS = { good: FX_BASE + "stats/stat-boost.wav", bad: FX_BASE + "stats/stat-drop.wav", ability: FX_BASE + "stats/ability-activate.wav", terra: FX_BASE + "terra-transform/terra-time.wav", mega: FX_BASE + "mega-transform/its_mega_time.wav", zygarde: FX_BASE + "zygarde-transform/its_zygard_time.wav" };
   const soundBuffers = {};
   let audioContext = null;
   const contextOf = () => audioContext || (audioContext = new (window.AudioContext || window.webkitAudioContext)());
@@ -609,6 +677,7 @@
       .then((data) => contextOf().decodeAudioData(data))
       .catch((e) => { console.warn("[phd] stat sound load failed", type, e); return null; });
   }
+  const AUDIO_RESUME_WAIT = 1000;
   async function playStatSound(type) {
     const sound = window.BattleSound;
     const volume = sound ? (sound.muted ? 0 : sound.effectVolume) : 50;
@@ -616,7 +685,8 @@
     const buffer = await soundBuffers[type];
     if (!buffer) return;
     const context = contextOf();
-    if (context.state === "suspended") await context.resume().catch(() => {});
+    if (context.state === "suspended") await Promise.race([context.resume().catch(() => {}), new Promise((resolve) => setTimeout(resolve, AUDIO_RESUME_WAIT))]);
+    if (context.state !== "running") return null;
     const source = context.createBufferSource();
     const gain = context.createGain();
     gain.gain.value = Math.max(0, Math.min(1, volume / 100));
@@ -631,7 +701,8 @@
   const STAT_FX_SCALE = 2;
   const STAT_SOUND_DELAY = 33; //this is just to match the offset to Pokemon Sword/Shield
 
-  for (const type in STAT_FX) { preload(STAT_FX[type].url); getDuration(STAT_FX[type].url); }
+  //only get the length now and load the picture when it plays
+  for (const type in STAT_FX) getDuration(STAT_FX[type].url);
 
   const pointOf = (text) => (text || "").split(",").map(Number);
   function fxFrame(scene, sprite) {
@@ -649,6 +720,7 @@
     const fx = STAT_FX[type];
     if (!fx || !sprite || !sprite.$el) return;
     const ms = durations[fx.url] || 2000;
+    const releaseFx = fxHold(fx.url);
     const $img = $("<img>").css({ display: "none", position: "absolute", pointerEvents: "none", opacity: STAT_FX_OPACITY });
     scene.$fx.append($img);
     $img.delay(scene.timeOffset).queue(function (next) {
@@ -656,6 +728,7 @@
       if (!frame) {
         $img.detach();
         $img.clearQueue();
+        releaseFx();
         return next();
       }
       $img.attr("src", `${fx.url}#${Date.now()}`).css({
@@ -668,23 +741,66 @@
       setTimeout(() => playStatSound(type), STAT_SOUND_DELAY);
       next();
     }).delay(ms).queue(function (next) {
-      $img.detach();
+      $img.detach().removeAttr("src");
+      releaseFx();
       next();
     }).delay(STAT_FX_GAP);
     scene.waitFor($img);
   }
 
-  const TERRA_URL = { front: FX_BASE + "terra-transform/terra.apng", back: FX_BASE + "terra-transform/terra-back.apng" };
-  const TERRA_REVEAL = 2100;
-  const TERRA_SHRINK_AT = 1000;
-  const TERRA_SHRINK = 250;
-  const TERRA_GROW = 200;
-  let terraData = null;
-  fetch(FX_BASE + "terra-transform/data.json").then((response) => response.json()).then((data) => { terraData = data; }).catch((e) => console.warn("[phd] terra data load failed", e));
-  for (const view in TERRA_URL) { preload(TERRA_URL[view]); getDuration(TERRA_URL[view]); }
+  const MORPH_SHRINK = 250;
+  const MORPH_GROW = 200;
+  //mega and zygarde play the same way so they share one setup and only differ in the extras
+  const orbFx = (dir, name, extra) => ({
+    urls: { front: `${FX_BASE}${dir}/${name}.png`, back: `${FX_BASE}${dir}/${name}-back.png` },
+    data: `${FX_BASE}${dir}/data.json`,
+    shrinkAt: 400,
+    reveal: 2800,
+    length: 6367,
+    between: true,
+    anchor: "center",
+    fxAnchor: "middle",
+    swap: true,
+    action: { at: 3600, kinds: ["special", "tap"], cry: true },
+    ...extra
+  });
+  const MORPH_FX = {
+    terra: {
+      urls: { front: FX_BASE + "terra-transform/terra.apng", back: FX_BASE + "terra-transform/terra-back.apng" },
+      data: FX_BASE + "terra-transform/data.json",
+      shrinkAt: 1000,
+      reveal: 2100,
+      length: 4033,
+      sound: "terra",
+      hold: true
+    },
+    mega: orbFx("mega-transform", "effect_megaanimation", { sound: "mega", orb: { front: 62.5, back: 126 }, orbGrowth: 1.25 }),
+    zygarde: orbFx("zygarde-transform", "effect_zygardetransformation", { sound: "zygarde" })
+  };
+  //gets the size of a picture then lets it go right away so it does not sit in memory
+  const measureImage = (url) => new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const size = { w: img.naturalWidth, h: img.naturalHeight };
+      img.src = "";
+      resolve(size);
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+  for (const kind in MORPH_FX) {
+    const fx = MORPH_FX[kind];
+    fx.table = null;
+    fetch(fx.data).then((response) => response.json()).then((data) => { fx.table = data; }).catch((e) => console.warn("[phd] transform data load failed", kind, e));
+    fx.size = {};
+    for (const view in fx.urls) {
+      measureImage(fx.urls[view]).then((size) => { if (size) fx.size[view] = size; });
+      getDuration(fx.urls[view]);
+    }
+  }
 
-  function playTerraSound(scene, $img) {
-    const playing = playStatSound("terra");
+  function morphSound(fx, scene, $img) {
+    const playing = playStatSound(fx.sound);
     const cut = () => !$img[0].isConnected || !scene.animating || scene.battle.seeking !== null;
     const watch = setInterval(() => {
       if (!cut()) return;
@@ -694,84 +810,153 @@
     playing.then((source) => { if (source) source.onended = () => clearInterval(watch); else clearInterval(watch); });
   }
 
-  function terraReady(sprite) {
+  function morphReady(fx, sprite) {
     const view = sprite.isFrontSprite ? "front" : "back";
-    return Boolean(terraData && terraData[view] && sprite.$el && sprite.sp && placementOf(sprite.sp));
+    return Boolean(fx.table && fx.table[view] && (!fx.fxAnchor || (fx.size && fx.size[view])) && sprite.$el && sprite.sp && placementOf(sprite.sp));
   }
 
-  function spriteOrigin(scene, sprite) {
+  function spriteOrigin(scene, sprite, key = "origin") {
     const place = placementOf(sprite.sp);
     const box = scene.pos({ x: sprite.x, y: sprite.y, z: sprite.z }, sprite.sp);
     const scale = place.w ? box.width / place.w : 1;
-    const own = place.origin && pointOf(place.origin);
+    const own = place[key] && pointOf(place[key]);
     const hasOwn = own && Number.isFinite(own[0]) && Number.isFinite(own[1]);
+    const fallbackY = key === "center" ? box.top + box.height / 2 : box.top + box.height;
+    const content = hitboxOf(actionUrl(sprite, ""));
     return {
       scale,
+      hit: content ? content.h * box.height : 0,
       ox: hasOwn ? box.left + (own[0] - place.x) * scale : box.left + box.width / 2,
-      oy: hasOwn ? box.top + (own[1] - place.y) * scale : box.top + box.height
+      oy: hasOwn ? box.top + (own[1] - place.y) * scale : fallbackY
     };
   }
 
-  function terraFrame(scene, sprite, view) {
-    const t = terraData[view];
-    const { scale, ox, oy } = spriteOrigin(scene, sprite);
-    const at = pointOf(t.origin);
+  function fxAnchor(fx, t, view) {
+    const key = fx.fxAnchor || fx.anchor || "origin";
+    const point = t[key];
+    if (point && typeof point === "object") {
+      const size = fx.size && fx.size[view];
+      if (size && size.w && size.h) return [t.x + point.x * t.w / size.w, t.y + point.y * t.h / size.h];
+    } else if (typeof point === "string") return pointOf(point);
+    return pointOf(t.center || t.origin);
+  }
+
+  function morphFrame(fx, pivot, view) {
+    const t = fx.table[view];
+    const at = fxAnchor(fx, t, view);
+    const orb = fx.orb && fx.orb[view];
+    const scale = orb && pivot.hit > 0 && pivot.scale > 0 ? (fx.orbGrowth * pivot.hit) / orb : pivot.scale;
     return {
-      left: Math.round(ox + (t.x - at[0]) * scale),
-      top: Math.round(oy + (t.y - at[1]) * scale),
+      left: Math.round(pivot.ox + (t.x - at[0]) * scale),
+      top: Math.round(pivot.oy + (t.y - at[1]) * scale),
       width: Math.round(t.w * scale),
       height: Math.round(t.h * scale)
     };
   }
 
-  function playTerraFx(scene, sprite) {
+  function playMorphFx(scene, sprite, fx, pivot) {
     const view = sprite.isFrontSprite ? "front" : "back";
-    const url = TERRA_URL[view];
+    const url = fx.urls[view];
     const el = sprite.$el;
-    const ms = durations[url] || 4033;
+    const ms = durations[url] || fx.length;
+    const releaseFx = fxHold(url);
     const $img = $("<img>").css({ display: "none", position: "absolute", pointerEvents: "none" });
-    scene.$fx.append($img);
+    if (fx.between && sprite.isFrontSprite && scene.$sprites && scene.$sprites[0] && scene.$sprites[0].parent().length) scene.$sprites[0].before($img);
+    else scene.$fx.append($img);
     const release = () => {
       if (!sprite.__phdTeraHold) return;
       sprite.__phdTeraHold = false;
       try { if (window.__phdTera) window.__phdTera.update(scene); } catch (e) { console.warn("[phd]", e); }
     };
-    sprite.__phdTeraHold = true;
-    setTimeout(release, scene.timeOffset + TERRA_REVEAL + 1500);
-    const pivot = spriteOrigin(scene, sprite);
+    if (fx.hold) {
+      sprite.__phdTeraHold = true;
+      setTimeout(release, scene.timeOffset + fx.reveal + 1500);
+    }
     const hidden = { left: Math.round(pivot.ox), top: Math.round(pivot.oy), width: 0, height: 0, opacity: 0 };
-    const shown = scene.pos({ x: sprite.x, y: sprite.y, z: sprite.z, opacity: 1 }, sprite.sp);
+    const shownOf = () => scene.pos({ x: sprite.x, y: sprite.y, z: sprite.z, opacity: 1 }, sprite.sp);
+    const freshEl = (css) => {
+      const sp = sprite.sp;
+      const $new = $('<img src="' + sp.url + '" style="display:block;opacity:0;position:absolute"' + (sp.pixelated ? ' class="pixelated"' : "") + " />");
+      $new.css(css);
+      sprite.$el.replaceWith($new);
+      sprite.$el = $new;
+      return $new;
+    };
+    let revealed = false;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      sprite.__phdMorphHold = false;
+      release();
+    };
+    const act = () => {
+      if (!fx.action || cancelled || !$img[0].isConnected || !scene.animating || scene.battle.seeking !== null) return;
+      const kind = fx.action.kinds.find((name) => actionUrl(sprite, name));
+      if (kind) play(sprite, kind, 0);
+      if (fx.action.cry && sprite.cryurl && window.BattleSound) window.BattleSound.playEffect(sprite.cryurl);
+    };
+    let cancelled = false;
+    const settle = () => {
+      if (fx.swap) freshEl(shownOf());
+      else el.css(shownOf());
+      reveal();
+    };
+    const step = (run) => function (next) {
+      if (cancelled) return next();
+      run(next);
+    };
+    const grow = ($target) => $target.delay(Math.max(0, fx.reveal - fx.shrinkAt - MORPH_SHRINK)).queue(function (next) {
+      reveal();
+      next();
+    }).animate(shownOf(), MORPH_GROW);
     el.delay(scene.timeOffset).queue(function (next) {
       if (!(scene.animating && scene.battle.seeking === null)) {
-        $img.detach();
+        cancelled = true;
+        $img.detach().removeAttr("src");
+        releaseFx();
+        settle();
         return next();
       }
-      $img.attr("src", `${url}#${Date.now()}`).css({ display: "block", ...terraFrame(scene, sprite, view) });
-      playTerraSound(scene, $img);
+      $img.attr("src", `${url}#${Date.now()}`).css({ display: "block", ...morphFrame(fx, pivot, view) });
+      if (fx.sound) morphSound(fx, scene, $img);
+      if (fx.action) setTimeout(act, fx.action.at);
       next();
-    }).delay(TERRA_SHRINK_AT).animate(hidden, TERRA_SHRINK).delay(TERRA_REVEAL - TERRA_SHRINK_AT - TERRA_SHRINK).queue(function (next) {
-      release();
-      next();
-    }).animate(shown, TERRA_GROW);
+    }).queue(step((next) => setTimeout(next, fx.shrinkAt))).queue(step((next) => {
+      el.animate(hidden, { duration: MORPH_SHRINK, queue: false, complete: next });
+    }));
+    if (fx.swap) {
+      el.queue(step((next) => {
+        grow(freshEl(hidden));
+        sprite.__phdMorphHold = false;
+        next();
+      }));
+    } else {
+      grow(el);
+    }
     $img.delay(scene.timeOffset).delay(ms).queue(function (next) {
-      $img.detach();
+      $img.detach().removeAttr("src");
+      releaseFx();
       next();
     });
     scene.waitFor($img);
-    scene.waitFor(el);
+    if (!fx.swap) scene.waitFor(el);
   }
 
   function placeStatbars(scene) {
     const mode = cfg.hpBars && cfg.hpBars.mode;
     const battle = scene.battle;
-    if ((mode !== "team" && mode !== "sprite") || !battle) return;
+    if (!battle) return;
+    const placeBars = mode === "team" || mode === "sprite";
     for (const side of [battle.nearSide, battle.farSide]) {
       const sprites = ((side && side.active) || []).filter((pokemon) => pokemon && pokemon.sprite && pokemon.sprite.sp).map((pokemon) => pokemon.sprite);
       const boxes = new Map(sprites.map((sprite) => [sprite, spriteHitbox(sprite)]));
-      const tops = [...boxes.values()].filter(Boolean).map((box) => box.top);
+      const tops = placeBars ? [...boxes.values()].filter(Boolean).map((box) => box.top) : [];
       for (const sprite of sprites) {
         const box = boxes.get(sprite);
         if (!box) continue;
+        sprite.left = Math.round(box.left + box.width / 2);
+        sprite.top = Math.round(box.top + box.height / 2);
+        if (!placeBars) continue;
         const reference = mode === "team" ? Math.min(...tops) : box.top;
         sprite.statbarLeft = Math.round(box.left + box.width / 2 - STATBAR_HALF_WIDTH);
         sprite.statbarTop = Math.max(-4, Math.round(reference - STATBAR_HEIGHT));
@@ -807,7 +992,7 @@
     for (const side of [battle.nearSide, battle.farSide]) {
       for (const pokemon of (side && side.active) || []) {
         const sprite = pokemon && pokemon.sprite;
-        if (!sprite || !sprite.$el || !sprite.sp || !placementOf(sprite.sp) || !sprite.sp.__phdBase || sprite.$el.is(":animated")) continue;
+        if (!sprite || sprite.__phdMorphHold || !sprite.$el || !sprite.sp || !placementOf(sprite.sp) || !sprite.sp.__phdBase || sprite.$el.is(":animated")) continue;
         syncCoords(sprite);
         const { left, top, width, height } = scene.pos({ x: sprite.x, y: sprite.y, z: sprite.z }, sprite.sp);
         sprite.$el.css({ left, top, width, height });
@@ -832,13 +1017,14 @@
         const sprite = pokemon && pokemon.sprite;
         if (!sprite || !sprite.sp || !placementOf(sprite.sp)) return;
         const box = drawnHitbox(sprite);
-        const tip = box && scene.$tooltips.children(`[data-id="${prefix}${"abc"[index]}"]`)[0];
+        if (!box) return;
+        let tip = sprite.__phdTip;
+        if (!tip || !tip.isConnected || tip.parentNode !== scene.$tooltips[0]) tip = sprite.__phdTip = scene.$tooltips.children(`[data-id="${prefix}${"abc"[index]}"]`)[0];
         if (!tip) return;
-        const next = [box.left, box.top, box.width, box.height].map(Math.round);
-        const key = next.join();
-        if (tip.__phdKey === key) return;
-        tip.__phdKey = key;
-        Object.assign(tip.style, { left: next[0] + "px", top: next[1] + "px", width: next[2] + "px", height: next[3] + "px", zIndex: String(next[1] + next[3]) });
+        const left = Math.round(box.left), top = Math.round(box.top), width = Math.round(box.width), height = Math.round(box.height);
+        if (tip.__phdLeft === left && tip.__phdTop === top && tip.__phdWidth === width && tip.__phdHeight === height) return;
+        tip.__phdLeft = left; tip.__phdTop = top; tip.__phdWidth = width; tip.__phdHeight = height;
+        Object.assign(tip.style, { left: left + "px", top: top + "px", width: width + "px", height: height + "px", zIndex: String(top + height) });
       });
     }
   }
@@ -858,6 +1044,15 @@
   function patchPlacement() {
     if (!window.BattleScene || BattleScene.prototype.__phdPlaced) return;
     BattleScene.prototype.__phdPlaced = true;
+    const destroyScene = BattleScene.prototype.destroy;
+    BattleScene.prototype.destroy = function () {
+      statbarScenes.delete(this);
+      if (this.__phdRelayout) { clearTimeout(this.__phdRelayout); this.__phdRelayout = 0; }
+      const r = destroyScene.apply(this, arguments);
+      try { evictPreloaded(); } catch (e) { console.warn("[phd]", e); }
+      try { if (window.__phdTera) window.__phdTera.evict(); } catch (e) { console.warn("[phd]", e); }
+      return r;
+    };
     const rebuildTooltips = BattleScene.prototype.rebuildTooltips;
     if (rebuildTooltips) {
       BattleScene.prototype.rebuildTooltips = function () {
@@ -924,6 +1119,12 @@
         return r;
       };
 
+      const destroySprite = PokemonSprite.prototype.destroy;
+      PokemonSprite.prototype.destroy = function () {
+        try { dropIcon(this); } catch (e) { console.warn("[phd]", e); }
+        return destroySprite.apply(this, arguments);
+      };
+
       const adopt = (sprite, from) => {
         for (const sp of [sprite.sp, sprite.oldsp]) {
           if (!sp || !from) continue;
@@ -939,16 +1140,29 @@
       PokemonSprite.prototype.animTransform = function (pokemon, useSpeciesAnim, isPermanent) {
         const before = this.sp;
         const scene = this.scene;
-        if (scene.__phdTeraPending === pokemon && scene.animating && scene.battle.seeking === null && terraReady(this)) {
-          scene.__phdTeraPending = null;
+        const morph = scene.__phdMorph;
+        const fx = morph && morph.pokemon === pokemon && MORPH_FX[morph.kind];
+        if (fx && scene.animating && scene.battle.seeking === null && morphReady(fx, this)) {
+          scene.__phdMorph = null;
           let r;
+          const pivot = spriteOrigin(scene, this, fx.anchor);
+          try {
+            const next = { sp: Dex.getSpriteData(pokemon, this.isFrontSprite, { gen: this.scene.gen, mod: this.scene.mod }) };
+            hitboxOf(actionUrl(next, ""));
+            warm(next);
+            for (const name of (fx.action && fx.action.kinds) || []) {
+              const url = actionUrl(next, name);
+              if (url) { preload(url); getDuration(url); }
+            }
+          } catch (e) { console.warn("[phd]", e); }
           scene.animating = false;
           try { r = animTransform.call(this, pokemon, false, true); } finally { scene.animating = true; }
           try {
+            this.__phdMorphHold = true;
             adopt(this, before);
             scene.updateSidebar(pokemon.side);
-            playTerraFx(scene, this);
-          } catch (e) { console.warn("[phd]", e); }
+            playMorphFx(scene, this, fx, pivot);
+          } catch (e) { this.__phdMorphHold = false; console.warn("[phd]", e); }
           return r;
         }
         try {

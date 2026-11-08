@@ -175,6 +175,7 @@
   function abilityEdge(pokemon) {
     const side = pokemon.side, battle = side.battle;
     const count = side.active.length;
+    if (count < 2) return side === battle.nearSide ? "left" : "right";
     const visual = side === battle.nearSide ? pokemon.slot : count - 1 - pokemon.slot;
     return count > 1 && visual === count - 1 ? "right" : "left";
   }

@@ -60,7 +60,7 @@
     });
   }
 
-  const TERA_KINDS = ["", "tap", "physical"];
+  const TERA_KINDS = ["", "tap", "physical", "special"];
   const clampCacheSize = (value) => Math.max(6, Math.min(30, Math.round(Number(value)) || 12));
   let teraCacheOn = cfg.teraCache !== false;
   let teraCacheSize = clampCacheSize(cfg.teraCacheSize);

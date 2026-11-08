@@ -98,7 +98,7 @@
   }
 
   function warm(sprite) {
-    for (const kind of ["tap", "physical"]) {
+    for (const kind of ["tap", "physical", "special"]) {
       const url = actionUrl(sprite, kind);
       if (url) { preload(url); getDuration(url); }
     }
@@ -266,7 +266,7 @@
         const charge = kwArgs.prepare || kwArgs.anim === "prepare";
         if (this.seeking === null && this.scene.animating && !kwArgs.still && !kwArgs.notarget && !charge) {
           const category = this.dex.moves.get(move.id).category;
-          const kind = category === "Status" ? "tap" : "physical";
+          const kind = category === "Status" ? "tap" : category === "Special" && actionUrl(pokemon.sprite, "special") ? "special" : "physical";
           const url = actionUrl(pokemon.sprite, kind);
           if (url && !(url in durations)) document.dispatchEvent(new CustomEvent("phd-duration-request", { detail: url }));
           play(pokemon.sprite, kind, this.scene.timeOffset);
